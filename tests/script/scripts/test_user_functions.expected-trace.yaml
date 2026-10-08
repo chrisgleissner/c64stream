@@ -137,343 +137,1329 @@ trace:
 - line: 6
   content: "return 42"
   variables: {}
+- line: 9
+  content: "CONSTANT = GET_CONSTANT()"
+  variables: {}
 - line: 10
   content: "LOG \"Constant: \" + STR(CONSTANT)"
-  variables: {}
+  variables:
+    CONSTANT: 42
 - line: 11
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
 - line: 14
   content: "FUN DOUBLE(X)"
-  variables: {}
+  variables:
+    CONSTANT: 42
 - line: 18
   content: "DOUBLED = DOUBLE(21)"
-  variables: {}
+  variables:
+    CONSTANT: 42
 - line: 15
   content: "return X * 2"
-  variables: {}
+  variables:
+    CONSTANT: 42
+- line: 18
+  content: "DOUBLED = DOUBLE(21)"
+  variables:
+    CONSTANT: 42
 - line: 19
   content: "LOG \"Double of 21: \" + STR(DOUBLED)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
 - line: 20
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
 - line: 23
   content: "FUN ADD(A, B)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
 - line: 27
   content: "SUM = ADD(10, 20)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
 - line: 24
   content: "return A + B"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+- line: 27
+  content: "SUM = ADD(10, 20)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
 - line: 28
   content: "LOG \"10 + 20 = \" + STR(SUM)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
 - line: 29
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
 - line: 32
   content: "FUN GREET(NAME$)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
 - line: 36
   content: "GREETING$ = GREET(\"Alice\")"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
 - line: 33
   content: "return \"Hello, \" + NAME$ + \"!\""
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+- line: 36
+  content: "GREETING$ = GREET(\"Alice\")"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
 - line: 37
   content: "LOG GREETING$"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 38
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 41
   content: "FUN CALCULATE(X, Y)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 47
   content: "VALUE = CALCULATE(5, 10)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 42
   content: "TEMP = X * 2"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 43
   content: "RESULT = TEMP + Y"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 44
   content: "return RESULT"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+- line: 47
+  content: "VALUE = CALCULATE(5, 10)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
 - line: 48
   content: "LOG \"Calculate(5, 10): \" + STR(VALUE)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
 - line: 49
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
 - line: 52
   content: "FUN MAX(A, B)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
 - line: 60
   content: "MAXIMUM = MAX(15, 10)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
 - line: 53
   content: "if A > B then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
 - line: 54
   content: "return A"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+- line: 60
+  content: "MAXIMUM = MAX(15, 10)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
 - line: 61
   content: "LOG \"MAX(15, 10): \" + STR(MAXIMUM)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 62
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 65
   content: "FUN FACTORIAL(N)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 76
   content: "FACT5 = FACTORIAL(5)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 66
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 69
   content: "RESULT = 1"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 70
   content: "for I = 2 to N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 71
   content: "RESULT = RESULT * I"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 70
   content: "for I = 2 to N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 71
   content: "RESULT = RESULT * I"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 70
   content: "for I = 2 to N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 71
   content: "RESULT = RESULT * I"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 70
   content: "for I = 2 to N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 71
   content: "RESULT = RESULT * I"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 70
   content: "for I = 2 to N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 73
   content: "return RESULT"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+- line: 76
+  content: "FACT5 = FACTORIAL(5)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
 - line: 77
   content: "LOG \"Factorial(5): \" + STR(FACT5)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 78
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 81
   content: "FUN FIB(N)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 88
   content: "FIB5 = FIB(5)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 83
   content: "return N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 83
   content: "return N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
-- line: 85
-  content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 83
   content: "return N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
-- line: 85
-  content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
-- line: 83
-  content: "return N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
-- line: 85
-  content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 82
   content: "if N <= 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 83
   content: "return N"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 85
   content: "return FIB(N - 1) + FIB(N - 2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 82
+  content: "if N <= 1 then"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 83
+  content: "return N"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 82
+  content: "if N <= 1 then"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 82
+  content: "if N <= 1 then"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 82
+  content: "if N <= 1 then"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 83
+  content: "return N"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 82
+  content: "if N <= 1 then"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 83
+  content: "return N"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 82
+  content: "if N <= 1 then"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 83
+  content: "return N"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+- line: 88
+  content: "FIB5 = FIB(5)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
 - line: 89
   content: "LOG \"Fibonacci(5): \" + STR(FIB5)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 90
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 93
   content: "FUN SQUARE(X)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 97
   content: "FUN SUM_OF_SQUARES(A, B)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 101
   content: "SOS = SUM_OF_SQUARES(3, 4)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 98
   content: "return SQUARE(A) + SQUARE(B)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 94
   content: "return X * X"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 98
   content: "return SQUARE(A) + SQUARE(B)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+- line: 94
+  content: "return X * X"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 98
   content: "return SQUARE(A) + SQUARE(B)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+- line: 101
+  content: "SOS = SUM_OF_SQUARES(3, 4)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
 - line: 102
   content: "LOG \"3^2 + 4^2 = \" + STR(SOS)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 103
   content: "wait 100ms"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 106
   content: "FUN APPLY_EFFECT_AND_WAIT(EFFECT_NAME$, DURATION)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 112
   content: "SUCCESS = APPLY_EFFECT_AND_WAIT(\"Sharp Pixels\", 0.2)"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 107
   content: "effect EFFECT_NAME$"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 108
   content: "wait DURATION"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 109
   content: "return 1"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+- line: 112
+  content: "SUCCESS = APPLY_EFFECT_AND_WAIT(\"Sharp Pixels\", 0.2)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
 - line: 113
   content: "if SUCCESS = 1 then"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+- line: 114
+  content: "LOG \"Effect applied successfully\""
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
 - line: 118
   content: "for J = 1 to 3"
-  variables: {}
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
 - line: 119
   content: "RESULT = DOUBLE(J)"
   variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
     J: 1
 - line: 15
   content: "return X * 2"
   variables:
-    J: 1
-- line: 120
-  content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
-  variables:
-    J: 1
-- line: 121
-  content: "wait 50ms"
-  variables:
-    J: 1
-- line: 118
-  content: "for J = 1 to 3"
-  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
     J: 1
 - line: 119
   content: "RESULT = DOUBLE(J)"
   variables:
-    J: 2
-- line: 15
-  content: "return X * 2"
-  variables:
-    J: 2
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 1
 - line: 120
   content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
   variables:
-    J: 2
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 1
+    RESULT: 2
 - line: 121
   content: "wait 50ms"
   variables:
-    J: 2
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 1
+    RESULT: 2
 - line: 118
   content: "for J = 1 to 3"
   variables:
-    J: 2
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 1
+    RESULT: 2
 - line: 119
   content: "RESULT = DOUBLE(J)"
   variables:
-    J: 3
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 2
+    RESULT: 2
 - line: 15
   content: "return X * 2"
   variables:
-    J: 3
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 2
+    RESULT: 2
+- line: 119
+  content: "RESULT = DOUBLE(J)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 2
+    RESULT: 2
 - line: 120
   content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
   variables:
-    J: 3
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 2
+    RESULT: 4
 - line: 121
   content: "wait 50ms"
   variables:
-    J: 3
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 2
+    RESULT: 4
 - line: 118
   content: "for J = 1 to 3"
   variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 2
+    RESULT: 4
+- line: 119
+  content: "RESULT = DOUBLE(J)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
     J: 3
+    RESULT: 4
+- line: 15
+  content: "return X * 2"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 3
+    RESULT: 4
+- line: 119
+  content: "RESULT = DOUBLE(J)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 3
+    RESULT: 4
+- line: 120
+  content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 3
+    RESULT: 6
+- line: 121
+  content: "wait 50ms"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 3
+    RESULT: 6
+- line: 118
+  content: "for J = 1 to 3"
+  variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
+    J: 3
+    RESULT: 6
 - line: 124
   content: "stop"
   variables:
+    CONSTANT: 42
+    DOUBLED: 42
+    SUM: 30
+    GREETING$: "Hello, Alice!"
+    VALUE: 20
+    MAXIMUM: 15
+    FACT5: 120
+    FIB5: 5
+    SOS: 25
+    SUCCESS: 1
     J: 4
+    RESULT: 6

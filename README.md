@@ -153,11 +153,6 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 
 #### Windows (ARM64)
 
-> [!NOTE]
-> Windows on ARM64 support is experimental and has not yet been fully tested.
-> If you would like to help with testing, please reach out via the
-> *Discussions* tab of this repository.
-
 1. Download and unzip the ARM64 build of OBS Studio:
    <https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip>
 2. Ensure OBS Studio is closed.
@@ -540,7 +535,7 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 **Palette Controls:**
 
 - **Palette:** Select from shipped palettes or any custom palettes you've added
-- **Follow device:** Uses the Ultimate's active runtime palette when supported. Older firmware is retried without palette packets and continues with the default colors.
+- **Follow device (experimental):** Uses the Ultimate's active runtime palette when supported. This requires Ultimate 64 firmware 3.16, which has not been released yet; it is not yet known when the C64 Ultimate firmware will support it. Older firmware is retried without palette packets and continues with the default colors.
 - **Import palette:** Imports a `.vpl` file
 - **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
 - **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output

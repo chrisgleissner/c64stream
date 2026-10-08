@@ -50,6 +50,19 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define MACRO_LOG_PREFIX "[c64script-vm] "
 
+// Converts a script number to an array index. Returns false for NaN, infinity,
+// negative values and values at or above C64SCRIPT_MAX_ARRAY_SIZE, so the cast
+// to size_t is always defined.
+static bool array_index_from_number(double number, size_t *out)
+{
+    double truncated = trunc(number);
+    if (!isfinite(truncated) || truncated < 0.0 || truncated >= (double)C64SCRIPT_MAX_ARRAY_SIZE) {
+        return false;
+    }
+    *out = (size_t)truncated;
+    return true;
+}
+
 static bool c64script_name_is_string(const char *name)
 {
     if (!name) {
@@ -142,13 +155,19 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        size_t size = (size_t)size_val.as.number;
+        double requested_size = trunc(size_val.as.number);
         c64script_value_free(&size_val);
 
-        if (size == 0) {
+        if (!isfinite(requested_size) || requested_size < 1.0) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array size must be greater than 0");
             return false;
         }
+        if (requested_size > (double)C64SCRIPT_MAX_ARRAY_SIZE) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array size must not exceed %d",
+                     C64SCRIPT_MAX_ARRAY_SIZE);
+            return false;
+        }
+        size_t size = (size_t)requested_size;
 
         c64script_value_type_t element_type = c64script_name_is_string(arrayname) ? VALUE_STRING : VALUE_NUMBER;
         c64script_value_t array = c64script_value_array(size, element_type);
@@ -178,8 +197,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        size_t index = (size_t)index_val.as.number;
+        size_t index = 0;
+        bool index_valid = array_index_from_number(index_val.as.number, &index);
         c64script_value_free(&index_val);
+        if (!index_valid) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
+            return false;
+        }
 
         c64script_value_t array_var;
         if (!c64script_runtime_get_var(runtime, arrayname, &array_var)) {
@@ -202,7 +226,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_free(&array_var);
 
         if (!c64script_runtime_push(runtime, element)) {
-            c64script_value_free(&element);
             return false;
         }
         break;
@@ -233,8 +256,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        size_t index = (size_t)index_val.as.number;
+        size_t index = 0;
+        bool index_valid = array_index_from_number(index_val.as.number, &index);
         c64script_value_free(&index_val);
+        if (!index_valid) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
+            c64script_value_free(&value_val);
+            return false;
+        }
 
         c64script_value_t array_var;
         if (!c64script_runtime_get_var(runtime, arrayname, &array_var)) {
@@ -345,7 +374,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_free(&key_val);
 
         if (!c64script_runtime_push(runtime, value)) {
-            c64script_value_free(&value);
             return false;
         }
         break;
@@ -539,7 +567,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             result = c64script_value_string(concat);
             free(concat);
             if (!c64script_runtime_push(runtime, result)) {
-                c64script_value_free(&result);
                 return false;
             }
         } else {
@@ -733,12 +760,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_NOT:
         if (!c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "NOT")) {
+        int not_operand = 0;
+        if (!number_to_int(runtime, &a, &not_operand, "NOT")) {
             c64script_value_free(&a);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(~((int)a.as.number));
+        result.as.number = (double)(~not_operand);
         c64script_value_free(&a);
         if (!c64script_runtime_push(runtime, result))
             return false;
@@ -747,13 +775,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_AND:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "AND") || !require_number(runtime, &b, "AND")) {
+        int and_left = 0;
+        int and_right = 0;
+        if (!number_to_int(runtime, &a, &and_left, "AND") || !number_to_int(runtime, &b, &and_right, "AND")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(((int)a.as.number) & ((int)b.as.number));
+        result.as.number = (double)(and_left & and_right);
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -763,13 +793,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_XOR:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "XOR") || !require_number(runtime, &b, "XOR")) {
+        int xor_left = 0;
+        int xor_right = 0;
+        if (!number_to_int(runtime, &a, &xor_left, "XOR") || !number_to_int(runtime, &b, &xor_right, "XOR")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(((int)a.as.number) ^ ((int)b.as.number));
+        result.as.number = (double)(xor_left ^ xor_right);
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -779,13 +811,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_OR:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "OR") || !require_number(runtime, &b, "OR")) {
+        int or_left = 0;
+        int or_right = 0;
+        if (!number_to_int(runtime, &a, &or_left, "OR") || !number_to_int(runtime, &b, &or_right, "OR")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(((int)a.as.number) | ((int)b.as.number));
+        result.as.number = (double)(or_left | or_right);
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -876,7 +910,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
             // Push return value onto stack
             if (!c64script_runtime_push(runtime, return_val)) {
-                c64script_value_free(&return_val);
                 return false;
             }
 
@@ -1066,7 +1099,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
         double v = duration.as.number;
         c64script_value_free(&duration);
-        if (v < 0.0) {
+        double multiplier = wait_unit_multiplier((c64script_wait_unit_t)instr->operand);
+        // Same limit as duration literals: whole milliseconds that fit in uint32_t.
+        if (!(v >= 0.0 && v * multiplier <= (double)UINT32_MAX)) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
             return false;
         }
@@ -1076,7 +1111,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             break;
         }
 
-        double multiplier = wait_unit_multiplier((c64script_wait_unit_t)instr->operand);
         uint64_t total_ms = (uint64_t)(v * multiplier);
         uint64_t remaining_ms = total_ms;
         if (c64script_debug_logging_enabled()) {
@@ -1169,7 +1203,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
                 return false;
             }
             double poll_seconds = poll_val.as.number;
-            if (poll_seconds < 0.0) {
+            if (!(poll_seconds >= 0.0 && poll_seconds * wait_unit_multiplier(poll_unit) <= (double)UINT32_MAX)) {
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
                 c64script_value_free(&poll_val);
                 c64script_value_free(&value_val);
@@ -1567,7 +1601,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         scope->local_var_count = 0;
         scope->local_var_capacity = 0;
         scope->saved_var_count = runtime->variable_count;
-        scope->return_ip = runtime->ip + 1;
+        // The VM loop advances ip before executing an instruction, so ip already
+        // points at the instruction after this call.
+        scope->return_ip = runtime->ip;
 
         // Pop arguments from stack and create local parameter variables
         // Arguments are in reverse order on stack (last arg on top)

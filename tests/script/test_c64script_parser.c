@@ -431,6 +431,61 @@ TEST(parse_error_invalid_operator)
     assert(error_msg[0] != '\0');
 }
 
+// An unparseable statement inside a block must end the parse with an error.
+// The block loops previously called statement() again without consuming the
+// offending token, so these inputs never returned.
+TEST(parse_error_inside_block_terminates)
+{
+    const char *sources[] = {
+        "IF 1 THEN\nFOO\nENDIF\n",   "IF 1 THEN\n    EFF",   "IF 1 THEN\nX = 1\nELSE\n)\nENDIF\n",
+        "FOR I = 1 TO 2\n)\nNEXT\n", "WHILE 1\nFOO\nWEND\n",
+    };
+    for (size_t i = 0; i < sizeof(sources) / sizeof(sources[0]); i++) {
+        char error_msg[1024] = {0};
+        c64script_parse_options_t options = {.log_errors = false};
+        c64script_ast_node_t *ast =
+            c64script_parse_with_options(sources[i], strlen(sources[i]), error_msg, sizeof(error_msg), &options);
+        assert(ast == NULL);
+        assert(error_msg[0] != '\0');
+    }
+}
+
+// A FUN header whose later parameter is invalid must be rejected without
+// crashing. The error path previously freed the parameter array but left
+// param_count set, so c64script_ast_free() read names through a NULL pointer.
+TEST(parse_error_invalid_function_parameter)
+{
+    const char *source = "FUN F(A, B, 1)\nRETURN A\nENDFUN\n";
+    char error_msg[1024] = {0};
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
+    assert(ast == NULL);
+    assert(error_msg[0] != '\0');
+}
+
+// Duration literals are stored as uint32_t milliseconds. A literal above
+// UINT32_MAX ms was previously converted anyway, which is undefined behaviour.
+TEST(parse_error_duration_too_long)
+{
+    const char *sources[] = {"WAIT 50d\n", "WAIT 1200h\n", "WAIT 4294968s\n"};
+    for (size_t i = 0; i < sizeof(sources) / sizeof(sources[0]); i++) {
+        char error_msg[1024] = {0};
+        c64script_parse_options_t options = {.log_errors = false};
+        c64script_ast_node_t *ast =
+            c64script_parse_with_options(sources[i], strlen(sources[i]), error_msg, sizeof(error_msg), &options);
+        assert(ast == NULL);
+        assert(strstr(error_msg, "duration too long") != NULL);
+    }
+
+    // 49 days (4233600000 ms) still fits.
+    const char *source = "WAIT 49d\n";
+    char error_msg[1024] = {0};
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL);
+    c64script_ast_free(ast);
+}
+
 // ============================================================================
 // CONTROL FLOW TESTS
 // ============================================================================
@@ -1639,6 +1694,9 @@ int main(int argc, char **argv)
     printf("\n--- Error Handling Tests ---\n");
     RUN_TEST(parse_error_unterminated_string);
     RUN_TEST(parse_error_invalid_operator);
+    RUN_TEST(parse_error_inside_block_terminates);
+    RUN_TEST(parse_error_invalid_function_parameter);
+    RUN_TEST(parse_error_duration_too_long);
 
     printf("\n--- Integration Tests ---\n");
     RUN_TEST(parse_full_program);

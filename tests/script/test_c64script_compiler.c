@@ -529,6 +529,84 @@ TEST(execute_for_loop)
     c64script_ast_free(ast);
 }
 
+// A line number label followed by a statement on the same line inside a block
+// must keep that statement. The block loops previously appended the next
+// statement to the label node, which replaced the statement after the label.
+TEST(execute_labelled_statement_inside_block)
+{
+    const char *source = "A = 0\n"
+                         "B = 0\n"
+                         "FOR I = 1 TO 1\n"
+                         "\n"
+                         "10 A = 1\n"
+                         "B = 2\n"
+                         "NEXT\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "A", &value);
+    assert(got_var);
+    assert(value.as.number == 1.0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "B", &value);
+    assert(got_var);
+    assert(value.as.number == 2.0);
+    c64script_value_free(&value);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+// A user function call must return to the instruction directly after the
+// call. The return address was previously one instruction too far, so the
+// assignment after "X = F()" and the operand after "F() + 1" were skipped.
+TEST(execute_user_function_call_in_expression)
+{
+    const char *source = "FUN F(N)\n"
+                         "  RETURN N * 2\n"
+                         "ENDFUN\n"
+                         "X = F(20)\n"
+                         "Y = F(1) + 1\n"
+                         "Z = 1 + F(2) + F(3)\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+    assert(runtime->stack_size == 0);
+
+    const char *names[] = {"X", "Y", "Z"};
+    const double expected[] = {40.0, 3.0, 11.0};
+    for (size_t i = 0; i < 3; i++) {
+        c64script_value_t value;
+        bool got_var = c64script_runtime_get_var(runtime, names[i], &value);
+        assert(got_var);
+        assert(value.type == VALUE_NUMBER);
+        assert(value.as.number == expected[i]);
+        c64script_value_free(&value);
+    }
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 TEST(execute_while_loop)
 {
     const char *source = "X = 1\n"
@@ -747,6 +825,62 @@ TEST(execute_discover_devices_bad_port_fails)
 
     c64script_runtime_destroy(runtime);
     c64script_ast_free(ast);
+}
+
+// Runs a script that must fail at runtime and checks the error message.
+static void expect_runtime_error(const char *source, const char *expected_error)
+{
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, expected_error) != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+// DIM sizes and array indices were previously cast straight from double to
+// size_t, which is undefined for negative values and let DIM request
+// allocations of any size.
+TEST(execute_array_rejects_invalid_size_and_index)
+{
+    expect_runtime_error("DIM A(-2)\n", "Array size must be greater than 0");
+    expect_runtime_error("DIM A(0.5)\n", "Array size must be greater than 0");
+    expect_runtime_error("DIM A(65537)\n", "Array size must not exceed 65536");
+    expect_runtime_error("DIM A(99999999999999999999)\n", "Array size must not exceed 65536");
+    expect_runtime_error("DIM A(3)\nX = A(-1)\n", "Array index out of bounds");
+    expect_runtime_error("DIM A(3)\nA(-1) = 1\n", "Array index out of bounds");
+    expect_runtime_error("DIM A(3)\nA(3) = 1\n", "Array index out of bounds");
+}
+
+// Bitwise operators convert their operands to int. Values outside the int
+// range were previously cast directly, which is undefined behaviour; they now
+// report ILLEGAL QUANTITY.
+TEST(execute_bitwise_rejects_out_of_range_operands)
+{
+    expect_runtime_error("X = 99999999999999999999 AND 1\n", "ILLEGAL QUANTITY");
+    expect_runtime_error("X = 1 OR 99999999999999999999\n", "ILLEGAL QUANTITY");
+    expect_runtime_error("X = 99999999999999999999 XOR 1\n", "ILLEGAL QUANTITY");
+    expect_runtime_error("X = NOT 99999999999999999999\n", "ILLEGAL QUANTITY");
+}
+
+// WAIT converts its duration to milliseconds. A duration above UINT32_MAX ms
+// or NaN was previously cast anyway; it now reports ILLEGAL QUANTITY before
+// any waiting starts.
+TEST(execute_wait_rejects_out_of_range_duration)
+{
+    expect_runtime_error("WAIT 99999999999999999999\n", "ILLEGAL QUANTITY");
+    expect_runtime_error("X = 5000000\nWAIT X\n", "ILLEGAL QUANTITY");
 }
 
 TEST(execute_cfg_commands)
@@ -1712,6 +1846,11 @@ int main(void)
     printf("\n--- Loop Execution Tests ---\n");
     RUN_TEST(execute_for_loop);
     RUN_TEST(execute_while_loop);
+    RUN_TEST(execute_user_function_call_in_expression);
+    RUN_TEST(execute_labelled_statement_inside_block);
+    RUN_TEST(execute_array_rejects_invalid_size_and_index);
+    RUN_TEST(execute_bitwise_rejects_out_of_range_operands);
+    RUN_TEST(execute_wait_rejects_out_of_range_duration);
 
     printf("\n--- Labels & I/O Tests ---\n");
     RUN_TEST(execute_line_numbers_and_goto);

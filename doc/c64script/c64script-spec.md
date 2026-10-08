@@ -375,7 +375,7 @@ This table lists **all plugin-provided commands/functions** (not BASIC control-f
 **Target**: Plugin (updates OBS source settings)
 
 - `EFFECT`, `EFFECTPARAM`, `PALETTE` update OBS source settings.
-- `PALETTE "device"` follows runtime VIC palette changes reported by the Ultimate.
+- `PALETTE "device"` follows runtime VIC palette changes reported by the Ultimate. Experimental: requires Ultimate 64 firmware 3.16, which has not been released yet. It is not yet known when the C64 Ultimate firmware will support it. On other firmware the default palette stays in use.
 
 <a id="cmd-runners"></a>
 
@@ -2316,6 +2316,7 @@ END
 - Max loop nesting: **16** for FOR and WHILE loops each (`C64SCRIPT_MAX_FOR_NESTING`, `C64SCRIPT_MAX_WHILE_NESTING`)
 - Max GOSUB depth: **32** (`C64SCRIPT_MAX_GOSUB_DEPTH`)
 - Max variables: **512** (`C64SCRIPT_MAX_VARIABLES`)
+- Max array size: **65536** elements (`C64SCRIPT_MAX_ARRAY_SIZE`)
 - Max bytecode size: **256 KiB** (`C64SCRIPT_MAX_BYTECODE_SIZE`)
 
 ### 6.3 Differences from C64 BASIC V2

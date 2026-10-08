@@ -41,6 +41,7 @@ bool c64script_runtime_var_exists(c64script_runtime_t *runtime, const char *name
 /**
  * Stack operations
  */
+// Takes ownership of value. On failure the value is freed and error_msg is set.
 bool c64script_runtime_push(c64script_runtime_t *runtime, c64script_value_t value);
 bool c64script_runtime_pop(c64script_runtime_t *runtime, c64script_value_t *out_value);
 

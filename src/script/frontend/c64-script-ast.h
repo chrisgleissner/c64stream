@@ -15,3 +15,8 @@ See <https://www.gnu.org/licenses/> for details.
  */
 
 void c64script_ast_free(c64script_ast_node_t *node);
+
+/**
+ * Frees an expression tree, including identifier names and string literals.
+ */
+void c64script_ast_expr_free(c64script_ast_expr_t *expr);

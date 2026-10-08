@@ -374,7 +374,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     int status = getaddrinfo(hostname, NULL, &hints, &result);
     if (status == 0 && result != NULL) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)result->ai_addr;
-        if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, buffer_size) != NULL) {
+        if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, (socklen_t)buffer_size) != NULL) {
             C64_LOG_INFO("" NETWORK_LOG_PREFIX " System DNS resolved '%s' to IP: %s", hostname, ip_buffer);
             freeaddrinfo(result);
             return true;
@@ -394,7 +394,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     status = getaddrinfo(hostname_with_dot, NULL, &hints, &result);
     if (status == 0 && result != NULL) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)result->ai_addr;
-        if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, buffer_size) != NULL) {
+        if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, (socklen_t)buffer_size) != NULL) {
             C64_LOG_INFO("" NETWORK_LOG_PREFIX " FQDN resolved '%s' to IP: %s", hostname_with_dot, ip_buffer);
             freeaddrinfo(result);
             return true;

@@ -194,7 +194,6 @@ bool c64script_dispatch_drives(c64script_runtime_t *runtime, const c64script_ins
 
         c64script_value_t result_val = c64script_value_string(value);
         if (!c64script_runtime_push(runtime, result_val)) {
-            c64script_value_free(&result_val);
             c64script_value_free(&property);
             c64script_value_free(&drive);
             return false;

@@ -76,6 +76,11 @@ static void free_expr(c64script_ast_expr_t *expr)
     free(expr);
 }
 
+void c64script_ast_expr_free(c64script_ast_expr_t *expr)
+{
+    free_expr(expr);
+}
+
 void c64script_ast_free(c64script_ast_node_t *node)
 {
     while (node) {

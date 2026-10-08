@@ -36,7 +36,6 @@ bool c64script_dispatch_builtins(c64script_runtime_t *runtime, const c64script_i
         c64script_value_t result_val = c64script_value_string(str_buf);
         c64script_value_free(&num_val);
         if (!c64script_runtime_push(runtime, result_val)) {
-            c64script_value_free(&result_val);
             return false;
         }
         break;
@@ -433,7 +432,6 @@ bool c64script_dispatch_builtins(c64script_runtime_t *runtime, const c64script_i
 
         if (has_result) {
             if (!c64script_runtime_push(runtime, result_val)) {
-                c64script_value_free(&result_val);
                 return false;
             }
         }

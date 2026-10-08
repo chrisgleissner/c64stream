@@ -123,11 +123,15 @@ static void c64_rebuild_rest_client(struct c64_source *context)
     if (context->rest_client && have_valid_ip) {
         char new_base_url[sizeof(context->rest_base_url)];
         snprintf(new_base_url, sizeof(new_base_url), "http://%s", ip_snapshot);
+        const bool target_changed = strcmp(context->rest_base_url, new_base_url) != 0;
         if (c64_rest_client_retarget(context->rest_client, new_base_url, password_snapshot)) {
             snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s", new_base_url);
             // The keyboard keeps the same (now retargeted) rest_client pointer;
             // only refresh its keymap/transport selection.
             if (context->keyboard) {
+                if (target_changed) {
+                    c64_keyboard_reset_transport_negotiation(context->keyboard);
+                }
                 c64_keyboard_set_keymap(context->keyboard, context->keymap);
                 c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
             }
@@ -2154,8 +2158,7 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     // This prevents stale streaming state on the C64U from previous sessions
     if (strcmp(ip_address, "0.0.0.0") != 0) {
         C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
-        c64_stream_control_to(context, ip_address, control_port, false, 0, NULL); // Stop video
-        c64_stream_control_to(context, ip_address, control_port, false, 1, NULL); // Stop audio
+        c64_stream_control_stop_all_to(context, ip_address, control_port);
         // Brief delay to ensure stop commands are processed before start commands
         os_sleep_ms(50);
     }
@@ -2348,8 +2351,7 @@ static void c64_stop_streaming_to(struct c64_source *context, const char *host, 
     } else if (context->rest_client) {
         c64_rest_release_all(context->rest_client);
     }
-    if (!c64_stream_control_to(context, host, control_port, false, 0, NULL) ||
-        !c64_stream_control_to(context, host, control_port, false, 1, NULL)) {
+    if (!c64_stream_control_stop_all_to(context, host, control_port)) {
         C64_LOG_WARNING("Remote stream stop failed for %s", host);
     }
 }

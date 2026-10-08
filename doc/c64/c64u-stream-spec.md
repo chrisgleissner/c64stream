@@ -126,6 +126,8 @@ The following RGB colors are only indicative examples. The actual RGB color mapp
 
 ### Runtime Palette Packet
 
+> Experimental: requires Ultimate 64 firmware 3.16, which has not been released yet. It is not yet known when the C64 Ultimate firmware will support it.
+
 Supporting firmware can send the active 16-color RGB palette on the video UDP
 port. The client must opt in by starting video through REST with `palette=1`;
 ordinary and legacy stream starts remain unchanged.

@@ -177,7 +177,6 @@ bool c64script_dispatch_config(c64script_runtime_t *runtime, const c64script_ins
 
         c64script_value_t result_val = c64script_value_string(value);
         if (!c64script_runtime_push(runtime, result_val)) {
-            c64script_value_free(&result_val);
             c64script_value_free(&item);
             c64script_value_free(&category);
             return false;
@@ -259,7 +258,6 @@ bool c64script_dispatch_config(c64script_runtime_t *runtime, const c64script_ins
 
         c64script_value_t count_val = c64script_value_number((double)count);
         if (!c64script_runtime_push(runtime, count_val)) {
-            c64script_value_free(&count_val);
             return false;
         }
         break;
@@ -347,7 +345,6 @@ bool c64script_dispatch_config(c64script_runtime_t *runtime, const c64script_ins
 
         c64script_value_t count_val = c64script_value_number((double)count);
         if (!c64script_runtime_push(runtime, count_val)) {
-            c64script_value_free(&count_val);
             return false;
         }
         break;

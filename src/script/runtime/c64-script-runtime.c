@@ -664,11 +664,13 @@ bool c64script_runtime_var_exists(c64script_runtime_t *runtime, const char *name
 bool c64script_runtime_push(c64script_runtime_t *runtime, c64script_value_t value)
 {
     if (!runtime) {
+        c64script_value_free(&value);
         return false;
     }
 
     if (runtime->stack_size >= C64SCRIPT_MAX_STACK_DEPTH) {
         snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Stack overflow");
+        c64script_value_free(&value);
         return false;
     }
 
@@ -680,6 +682,7 @@ bool c64script_runtime_push(c64script_runtime_t *runtime, c64script_value_t valu
         c64script_value_t *new_stack = realloc(runtime->stack, new_cap * sizeof(c64script_value_t));
         if (!new_stack) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+            c64script_value_free(&value);
             return false;
         }
         runtime->stack = new_stack;

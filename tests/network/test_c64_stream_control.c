@@ -51,6 +51,7 @@ static struct {
 
 static struct {
     int calls;
+    bool ok;
     char last_host[64];
     uint32_t last_port;
     bool last_enable;
@@ -65,6 +66,7 @@ static void reset_stubs(void)
 {
     memset(&g_rest, 0, sizeof(g_rest));
     memset(&g_legacy, 0, sizeof(g_legacy));
+    g_legacy.ok = true;
 }
 
 // Follow-device tests take palette_mutex, which a zeroed struct does not initialize on every platform.
@@ -120,7 +122,7 @@ bool c64_rest_stream_stop_with_outcome(c64_rest_client_t *client, bool audio, c6
     return g_rest.stop_ok;
 }
 
-void c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
+bool c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
                                  const char *destination)
 {
     g_legacy.calls++;
@@ -133,6 +135,7 @@ void c64_send_control_command_to(const char *host, uint32_t control_port, bool e
     if (destination) {
         snprintf(g_legacy.last_destination, sizeof(g_legacy.last_destination), "%s", destination);
     }
+    return g_legacy.ok;
 }
 
 // --- Negotiation table: c64_stream_control_should_fallback, all outcomes. ---
@@ -464,6 +467,83 @@ TEST(stop_uses_stop_with_outcome_and_audio_flag)
     assert(g_legacy.calls == 0);
 }
 
+TEST(forced_rest_without_client_does_not_use_legacy)
+{
+    reset_stubs();
+    struct c64_source ctx = {0};
+    ctx.stream_control_transport = C64_STREAM_TRANSPORT_REST;
+
+    assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest"));
+    assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, false, 1, NULL));
+    assert(g_rest.start_calls == 0);
+    assert(g_rest.stop_calls == 0);
+    assert(g_legacy.calls == 0);
+}
+
+TEST(receive_only_mode_requires_no_remote_control)
+{
+    static const int transports[] = {C64_STREAM_TRANSPORT_AUTO, C64_STREAM_TRANSPORT_REST, C64_STREAM_TRANSPORT_LEGACY};
+    for (size_t i = 0; i < sizeof(transports) / sizeof(transports[0]); i++) {
+        reset_stubs();
+        struct c64_source ctx = {0};
+        ctx.stream_control_transport = transports[i];
+        assert(c64_stream_control_to(&ctx, "0.0.0.0", 64, true, 0, "dest"));
+        assert(c64_stream_control_stop_all_to(&ctx, "0.0.0.0", 64));
+        assert(g_rest.start_calls == 0);
+        assert(g_rest.stop_calls == 0);
+        assert(g_legacy.calls == 0);
+    }
+}
+
+TEST(legacy_send_failures_are_reported)
+{
+    static const int transports[] = {C64_STREAM_TRANSPORT_AUTO, C64_STREAM_TRANSPORT_LEGACY};
+    for (size_t i = 0; i < sizeof(transports) / sizeof(transports[0]); i++) {
+        reset_stubs();
+        struct c64_source ctx = {0};
+        ctx.stream_control_transport = transports[i];
+        g_legacy.ok = false;
+        assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest"));
+        assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, false, 1, NULL));
+        assert(g_legacy.calls == 2);
+    }
+
+    reset_stubs();
+    struct c64_source ctx = {0};
+    ctx.rest_client = kDummyClient;
+    g_rest.start_outcome = C64_REST_NOT_SUPPORTED;
+    g_rest.start_status = 404;
+    g_legacy.ok = false;
+    assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest"));
+    assert(g_rest.start_calls == 1);
+    assert(g_legacy.calls == 1);
+}
+
+TEST(stop_all_attempts_audio_after_video_failure)
+{
+    reset_stubs();
+    struct c64_source ctx = {0};
+    ctx.rest_client = kDummyClient;
+    ctx.stream_control_transport = C64_STREAM_TRANSPORT_REST;
+    g_rest.stop_ok = false;
+    g_rest.stop_outcome = C64_REST_UNREACHABLE;
+    assert(!c64_stream_control_stop_all_to(&ctx, "1.2.3.4", 64));
+    assert(g_rest.stop_calls == 2);
+    assert(g_rest.last_stop_audio);
+
+    reset_stubs();
+    g_rest.stop_ok = true;
+    assert(c64_stream_control_stop_all_to(&ctx, "1.2.3.4", 64));
+    assert(g_rest.stop_calls == 2);
+
+    reset_stubs();
+    ctx.stream_control_transport = C64_STREAM_TRANSPORT_LEGACY;
+    g_legacy.ok = false;
+    assert(!c64_stream_control_stop_all_to(&ctx, "1.2.3.4", 64));
+    assert(g_legacy.calls == 2);
+    assert(g_legacy.last_stream_id == 1);
+}
+
 TEST(null_context_or_host_returns_false)
 {
     reset_stubs();
@@ -521,6 +601,10 @@ int main(void)
     RUN_TEST(expiry_demotion_retries_rest_after_expiry);
     RUN_TEST(no_rest_client_goes_straight_to_legacy);
     RUN_TEST(stop_uses_stop_with_outcome_and_audio_flag);
+    RUN_TEST(forced_rest_without_client_does_not_use_legacy);
+    RUN_TEST(receive_only_mode_requires_no_remote_control);
+    RUN_TEST(legacy_send_failures_are_reported);
+    RUN_TEST(stop_all_attempts_audio_after_video_failure);
     RUN_TEST(null_context_or_host_returns_false);
     RUN_TEST(wrapper_reads_host_and_port_from_context);
     RUN_TEST(wrapper_null_context_returns_false);

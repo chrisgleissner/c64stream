@@ -26,7 +26,7 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
             return false;
         }
 
-        if (addr_val.as.number < 0.0 || addr_val.as.number > 65535.0) {
+        if (!(addr_val.as.number >= 0.0 && addr_val.as.number <= 65535.0)) {
             c64script_value_free(&addr_val);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
             return false;
@@ -63,14 +63,20 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
             c64script_value_free(&value);
             return false;
         }
-        if (address.as.number < 0.0 || address.as.number > 65535.0) {
+        if (!(address.as.number >= 0.0 && address.as.number <= 65535.0)) {
             c64script_value_free(&address);
             c64script_value_free(&value);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
             return false;
         }
+        int value_int = 0;
+        if (!number_to_int(runtime, &value, &value_int, "POKE")) {
+            c64script_value_free(&address);
+            c64script_value_free(&value);
+            return false;
+        }
         uint16_t addr = (uint16_t)(uint32_t)address.as.number;
-        uint8_t byte = (uint8_t)((int)value.as.number & 0xFF);
+        uint8_t byte = (uint8_t)(value_int & 0xFF);
         bool ok = c64_rest_write_memory((c64_rest_client_t *)runtime->rest_client, addr, &byte, 1);
         if (!ok) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "POKE failed: %s",
@@ -135,7 +141,7 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
             return false;
         }
 
-        if (address.as.number < 0.0 || address.as.number > 65535.0) {
+        if (!(address.as.number >= 0.0 && address.as.number <= 65535.0)) {
             c64script_value_free(&address);
             for (uint32_t i = 0; i < count; i++) {
                 c64script_value_free(&values[i]);
@@ -154,7 +160,8 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
                 chunk = (uint32_t)sizeof(buf);
             }
             for (uint32_t i = 0; i < chunk; i++) {
-                if (!require_number(runtime, &values[offset + i], "POKE")) {
+                int value_int = 0;
+                if (!number_to_int(runtime, &values[offset + i], &value_int, "POKE")) {
                     c64script_value_free(&address);
                     for (uint32_t j = 0; j < count; j++) {
                         c64script_value_free(&values[j]);
@@ -162,7 +169,7 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
                     free(values);
                     return false;
                 }
-                buf[i] = (uint8_t)((int)values[offset + i].as.number & 0xFF);
+                buf[i] = (uint8_t)(value_int & 0xFF);
             }
 
             bool ok = c64_rest_write_memory((c64_rest_client_t *)runtime->rest_client, (uint16_t)(base_addr + offset),

@@ -125,6 +125,94 @@ static bool test_apply_scan_results_supersession(void)
     return true;
 }
 
+static bool test_rescan_preserves_saved_settings(void)
+{
+    c64_device_t saved = {0};
+    strcpy(saved.id, "saved-device");
+    strcpy(saved.name, "Living room C64");
+    strcpy(saved.host, "192.168.1.10");
+    strcpy(saved.dns_server_ip, "192.168.1.1");
+    saved.video_port = 21042;
+    saved.audio_port = 21043;
+    saved.control_port = 1064;
+    CHECK(c64_device_registry_upsert(&saved));
+
+    // Rediscovery after DHCP changes must update the address without
+    // replacing user settings with scan defaults.
+    c64_device_t discovered = {0};
+    strcpy(discovered.id, saved.id);
+    strcpy(discovered.name, "C64 Ultimate (192.168.1.20)");
+    strcpy(discovered.host, "192.168.1.20");
+    discovered.video_port = 11000;
+    discovered.audio_port = 11001;
+    discovered.control_port = 64;
+    const size_t index = 0;
+    c64_device_scan_apply_results_for_test(&discovered, &index, 1);
+
+    // Check the persisted profile too, rather than only the in-memory copy.
+    c64_device_registry_cleanup();
+    CHECK(c64_device_registry_init());
+    const c64_device_t *actual = c64_device_registry_get(saved.id);
+    CHECK(actual != NULL);
+    CHECK(strcmp(actual->host, discovered.host) == 0);
+    CHECK(strcmp(actual->name, saved.name) == 0);
+    CHECK(strcmp(actual->dns_server_ip, saved.dns_server_ip) == 0);
+    CHECK(actual->video_port == saved.video_port);
+    CHECK(actual->audio_port == saved.audio_port);
+    CHECK(actual->control_port == saved.control_port);
+    CHECK(c64_device_registry_delete(saved.id));
+    return true;
+}
+
+static bool test_discovery_preserves_migrated_profile(void)
+{
+    c64_device_t migrated = {0};
+    strcpy(migrated.host, "192.168.1.64");
+    CHECK(c64_device_id_from_host(migrated.id, sizeof(migrated.id), NULL, migrated.host));
+    strcpy(migrated.name, "My C64");
+    strcpy(migrated.dns_server_ip, "192.168.1.1");
+    migrated.video_port = 21000;
+    migrated.audio_port = 21001;
+    migrated.control_port = 6400;
+    CHECK(c64_device_registry_upsert(&migrated));
+
+    c64_device_t discovered = {0};
+    strcpy(discovered.id, "physical-device");
+    strcpy(discovered.host, migrated.host);
+    strcpy(discovered.peer_host, "192.168.1.65");
+    discovered.video_port = 11000;
+    discovered.audio_port = 11001;
+    discovered.control_port = 64;
+    CHECK(c64_device_registry_upsert_discovered(&discovered));
+    const c64_device_t *actual = c64_device_registry_get(discovered.id);
+    CHECK(actual != NULL);
+    CHECK(strcmp(actual->id, discovered.id) == 0);
+    CHECK(strcmp(actual->name, migrated.name) == 0);
+    CHECK(strcmp(actual->peer_host, discovered.peer_host) == 0);
+    CHECK(strcmp(actual->dns_server_ip, migrated.dns_server_ip) == 0);
+    CHECK(actual->video_port == migrated.video_port);
+    CHECK(actual->audio_port == migrated.audio_port);
+    CHECK(actual->control_port == migrated.control_port);
+
+    // The hardware profile becomes authoritative after the first discovery.
+    migrated.video_port = 22000;
+    CHECK(c64_device_registry_upsert(&migrated));
+    CHECK(c64_device_registry_upsert_discovered(&discovered));
+    actual = c64_device_registry_get(discovered.id);
+    CHECK(actual->video_port == 21000);
+    CHECK(c64_device_registry_delete(migrated.id));
+
+    // A different physical device at the same address must use its own
+    // defaults, not inherit the prior hardware's saved settings.
+    strcpy(discovered.id, "replacement-device");
+    CHECK(c64_device_registry_upsert_discovered(&discovered));
+    actual = c64_device_registry_get(discovered.id);
+    CHECK(actual->video_port == 11000);
+    CHECK(c64_device_registry_delete(discovered.id));
+    CHECK(c64_device_registry_delete("physical-device"));
+    return true;
+}
+
 int main(void)
 {
 #ifndef _WIN32
@@ -140,7 +228,8 @@ int main(void)
         return 1;
     }
     if (!test_product_matching() || !test_error_envelope() || !test_prefix_clamp_and_own_address() ||
-        !test_selection_apply_policy() || !test_apply_scan_results_supersession()) {
+        !test_selection_apply_policy() || !test_apply_scan_results_supersession() ||
+        !test_rescan_preserves_saved_settings() || !test_discovery_preserves_migrated_profile()) {
         return 1;
     }
     puts("c64 device scan tests passed");

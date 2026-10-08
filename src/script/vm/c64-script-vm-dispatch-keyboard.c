@@ -90,8 +90,13 @@ bool c64script_dispatch_keyboard(c64script_runtime_t *runtime, const c64script_i
             }
             output.data.symbol[len] = '\0';
         } else if (key.type == VALUE_NUMBER) {
+            int petscii = 0;
+            if (!number_to_int(runtime, &key, &petscii, "KEY")) {
+                c64script_value_free(&key);
+                return false;
+            }
             output.mode = C64_OUTPUT_PETSCII;
-            output.data.petscii = (uint8_t)((int)key.as.number & 0xFF);
+            output.data.petscii = (uint8_t)(petscii & 0xFF);
         } else {
             c64script_value_free(&key);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (KEY)");

@@ -11,6 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 
 #include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -377,6 +378,26 @@ static c64script_token_t error_token(tokenizer_t *t, const char *message)
 // NUMBER TOKENIZATION
 // ============================================================================
 
+// Builds a duration token from the digits at start and the suffix that has
+// already been consumed. The value is stored as whole milliseconds in a
+// uint32_t, so durations above UINT32_MAX ms (about 49.7 days) are rejected
+// instead of overflowing the conversion.
+static c64script_token_t duration_token(tokenizer_t *t, const char *start, size_t length, size_t suffix_length,
+                                        double ms_per_unit)
+{
+    c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + suffix_length);
+    if (length >= 64)
+        return error_token(t, "number literal too long");
+    char num_str[64];
+    memcpy(num_str, start, length);
+    num_str[length] = '\0';
+    double ms = atof(num_str) * ms_per_unit;
+    if (!(ms >= 0.0 && ms <= (double)UINT32_MAX))
+        return error_token(t, "duration too long");
+    token.value.duration_ms = (uint32_t)ms;
+    return token;
+}
+
 static c64script_token_t tokenize_number(tokenizer_t *t)
 {
     const char *start = &t->source[t->pos];
@@ -406,63 +427,23 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         // milliseconds
         advance(t);
         advance(t);
-        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 2);
-        if (length >= 64)
-            return error_token(t, "number literal too long");
-        char num_str[64];
-        memcpy(num_str, start, length);
-        num_str[length] = '\0';
-        double value = atof(num_str);
-        token.value.duration_ms = (uint32_t)(value);
-        return token;
+        return duration_token(t, start, length, 2, 1.0);
     } else if (c == 's') {
         // seconds
         advance(t);
-        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
-        if (length >= 64)
-            return error_token(t, "number literal too long");
-        char num_str[64];
-        memcpy(num_str, start, length);
-        num_str[length] = '\0';
-        double value = atof(num_str);
-        token.value.duration_ms = (uint32_t)(value * 1000.0);
-        return token;
+        return duration_token(t, start, length, 1, 1000.0);
     } else if (c == 'm' && peek_next(t) != 's') {
         // minutes
         advance(t);
-        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
-        if (length >= 64)
-            return error_token(t, "number literal too long");
-        char num_str[64];
-        memcpy(num_str, start, length);
-        num_str[length] = '\0';
-        double value = atof(num_str);
-        token.value.duration_ms = (uint32_t)(value * 60000.0);
-        return token;
+        return duration_token(t, start, length, 1, 60000.0);
     } else if (c == 'h') {
         // hours
         advance(t);
-        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
-        if (length >= 64)
-            return error_token(t, "number literal too long");
-        char num_str[64];
-        memcpy(num_str, start, length);
-        num_str[length] = '\0';
-        double value = atof(num_str);
-        token.value.duration_ms = (uint32_t)(value * 3600000.0);
-        return token;
+        return duration_token(t, start, length, 1, 3600000.0);
     } else if (c == 'd') {
         // days
         advance(t);
-        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
-        if (length >= 64)
-            return error_token(t, "number literal too long");
-        char num_str[64];
-        memcpy(num_str, start, length);
-        num_str[length] = '\0';
-        double value = atof(num_str);
-        token.value.duration_ms = (uint32_t)(value * 86400000.0);
-        return token;
+        return duration_token(t, start, length, 1, 86400000.0);
     }
 
     // Regular number

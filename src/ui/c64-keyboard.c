@@ -159,6 +159,7 @@ struct c64_keyboard {
     c64_keymap_t *keymap;
     bool capturing;
     int transport;
+    uint64_t transport_generation;
     char status[64];
     uint64_t queued_submission_count;
 
@@ -1080,11 +1081,12 @@ static bool keyboard_wait_for_work(c64_keyboard_t *keyboard)
     return has_work;
 }
 
-static int keyboard_get_transport(c64_keyboard_t *keyboard)
+static int keyboard_get_transport(c64_keyboard_t *keyboard, uint64_t *generation)
 {
     int transport;
     pthread_mutex_lock(&keyboard->queue_mutex);
     transport = keyboard->transport;
+    *generation = keyboard->transport_generation;
     pthread_mutex_unlock(&keyboard->queue_mutex);
     return transport;
 }
@@ -1468,6 +1470,7 @@ static void *injection_worker(void *arg)
     bool last_batch_failed = false;
     /* Worker-thread-local: nothing else reads it, so it needs no lock. */
     uint64_t rest_demoted_until_ns = 0;
+    uint64_t transport_generation = 0;
 
     C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker started");
 
@@ -1496,7 +1499,12 @@ static void *injection_worker(void *arg)
             pending_consumed = pending_count;
 
             char json[8192];
-            const int transport = keyboard_get_transport(keyboard);
+            uint64_t generation;
+            const int transport = keyboard_get_transport(keyboard, &generation);
+            if (generation != transport_generation) {
+                rest_demoted_until_ns = 0;
+                transport_generation = generation;
+            }
             // Without the demotion memo, AUTO re-probes machine:input on every
             // batch against firmware that has already said it does not support
             // it -- a wasted HTTP round-trip (and an INFO line) per ten typed
@@ -1745,6 +1753,16 @@ void c64_keyboard_set_transport(c64_keyboard_t *keyboard, int transport)
     }
     pthread_mutex_lock(&keyboard->queue_mutex);
     keyboard->transport = transport;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+}
+
+void c64_keyboard_reset_transport_negotiation(c64_keyboard_t *keyboard)
+{
+    if (!keyboard) {
+        return;
+    }
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    keyboard->transport_generation++;
     pthread_mutex_unlock(&keyboard->queue_mutex);
 }
 

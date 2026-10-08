@@ -192,8 +192,9 @@ static inline bool c64_build_stream_dest(char *out, size_t out_size, const char 
  * @param enable       true = start stream, false = stop stream
  * @param stream_id    0 = video, 1 = audio
  * @param dest         "IP:PORT" destination for start commands (NULL for stop)
+ * @return true only when the complete command was sent
  */
-void c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
+bool c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
                                  const char *dest);
 
 // Protocol operations

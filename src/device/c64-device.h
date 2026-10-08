@@ -34,6 +34,8 @@ const c64_device_t *c64_device_registry_get_at(size_t index);
 const c64_device_t *c64_device_registry_find_by_host(const char *host);
 size_t c64_device_registry_count(void);
 bool c64_device_registry_upsert(const c64_device_t *device);
+/* Updates discovered addresses while preserving an existing user's profile. */
+bool c64_device_registry_upsert_discovered(const c64_device_t *device);
 bool c64_device_registry_delete(const char *id);
 void c64_device_registry_populate_list(obs_property_t *property);
 bool c64_device_id_from_host(char *out, size_t out_size, const char *unique_id, const char *host);
