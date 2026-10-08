@@ -28,7 +28,8 @@ See <https://www.gnu.org/licenses/> for details.
 struct c64_network_fifo_packet {
     uint64_t timestamp_ns;
     uint16_t size;
-    bool from_handover; // sent by the previous device during a switch handover
+    bool from_handover;   // sent by the previous device during a switch handover
+    bool palette_cutover; // first packet from the selected device after a switch
     uint8_t data[C64_NETWORK_FIFO_PACKET_MAX_SIZE];
 };
 
@@ -52,7 +53,7 @@ static inline void c64_network_fifo_reset(struct c64_network_fifo *fifo)
 }
 
 static inline bool c64_network_fifo_push_tagged(struct c64_network_fifo *fifo, const uint8_t *data, uint16_t size,
-                                                uint64_t timestamp_ns, bool from_handover)
+                                                uint64_t timestamp_ns, bool from_handover, bool palette_cutover)
 {
     if (!fifo || !fifo->entries || !data || fifo->capacity < 2) {
         return false;
@@ -75,6 +76,7 @@ static inline bool c64_network_fifo_push_tagged(struct c64_network_fifo *fifo, c
     slot->timestamp_ns = timestamp_ns;
     slot->size = size;
     slot->from_handover = from_handover;
+    slot->palette_cutover = palette_cutover;
     memcpy(slot->data, data, size);
 
     os_atomic_set_long(&fifo->head, next_head);
@@ -84,7 +86,7 @@ static inline bool c64_network_fifo_push_tagged(struct c64_network_fifo *fifo, c
 static inline bool c64_network_fifo_push(struct c64_network_fifo *fifo, const uint8_t *data, uint16_t size,
                                          uint64_t timestamp_ns)
 {
-    return c64_network_fifo_push_tagged(fifo, data, size, timestamp_ns, false);
+    return c64_network_fifo_push_tagged(fifo, data, size, timestamp_ns, false, false);
 }
 
 static inline struct c64_network_fifo_packet *c64_network_fifo_peek(struct c64_network_fifo *fifo)

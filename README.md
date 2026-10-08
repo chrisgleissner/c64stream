@@ -537,7 +537,7 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 **Palette Controls:**
 
 - **Palette:** Select from shipped palettes or any custom palettes you've added
-- **Follow device (experimental):** Uses the Ultimate's active runtime palette when supported. This requires Ultimate 64 firmware 3.16, which has not been released yet; it is not yet known when the C64 Ultimate firmware will support it. Older firmware is retried without palette packets and continues with the default colors.
+- **Follow device:** Shows the palette selected on the Ultimate (*U64 Specific Settings → Palette Definition*), so OBS matches the device. When the palette is changed on the device, OBS follows within about a second. The plugin downloads the selected `.vpl` file over FTP with the network password and keeps a copy, so each file is downloaded only once. **Palette source** shows where the colors come from and, if something is wrong, what to fix. **Check device every** sets how often the device is read (250-10000 ms, default 1000 ms). Follow device needs Stream Control Transport *Auto* or *Force REST*. Firmware that reports its palette in the video stream is also supported (experimental); the reported palette is then used directly, including palettes loaded without changing the setting.
 - **Import palette:** Imports a `.vpl` file
 - **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
 - **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output

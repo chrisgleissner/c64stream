@@ -34,12 +34,21 @@
 - A device rebooting in the middle of a legacy control command can no longer terminate OBS with
   `SIGPIPE`, and connection checks no longer use `select()` on descriptors above `FD_SETSIZE`.
 
-### Experimental: follow the device palette
+### Palette: Follow device
 
-- **Palette → Follow device** and `PALETTE "device"` use the palette the Ultimate is currently
-  rendering with, including runtime changes. This requires Ultimate 64 firmware 3.16, which has
-  not been released yet; it is not yet known when the C64 Ultimate firmware will support it. With
-  other firmware the default palette stays in use.
+- **Palette → Follow device** and `PALETTE "device"` show the palette selected on the Ultimate
+  (*Palette Definition* setting). OBS reads the setting every second (adjustable from 250 ms to
+  10 s), downloads the selected `.vpl` file over FTP using the network password, and keeps a
+  copy per device, so switching back to a device shows its colours at once.
+- **Palette source** shows where the colours come from (device palette, built-in palette, or
+  video stream) and names the problem if the palette cannot be read, for example a rejected
+  network password or FTP being disabled on the device.
+- Switching between devices shows each device's frames in its own colours: the palette
+  changes exactly with the new device's first frame, the last palette of each device is
+  remembered, and rapid switching does not flood the devices with requests.
+- Follow device needs Stream Control Transport *Auto* or *Force REST*.
+- Experimental: firmware that reports its palette in the video stream is supported too. The
+  reported palette is then used directly.
 
 ### Device discovery and transport fixes
 

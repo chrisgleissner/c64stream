@@ -16,3 +16,12 @@ add_subdirectory(script)
 add_subdirectory(e2e)
 add_subdirectory(filter)
 add_subdirectory(network)
+
+# Every locale defines the en-US keys with the same placeholders.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(
+    NAME locale_consistency
+    COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/locale/check_locales.py ${CMAKE_SOURCE_DIR}/data/locale
+  )
+endif()

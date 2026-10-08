@@ -19,7 +19,7 @@ It will SKIP when tint is enabled (tint intentionally destroys per-color identit
 """
 
 from __future__ import annotations
-
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -203,10 +203,13 @@ class PaletteMappingAssertion(EffectAssertion):
                 message=f"Failed to load palette colors from: {vpl_path}",
             )
 
+        # With a palette change during the run, the expected (final) palette is
+        # checked on the last part of the content; _check_transition verifies
+        # the order of the two palettes over the whole recording.
         transition_fraction = properties.get("device_palette_transition_fraction")
         after_range = None
         if transition_fraction is not None:
-            after_range = (float(transition_fraction) + 0.1, 1.0)
+            after_range = (0.85, 1.0)
 
         # Extract observed colors from the recording
         try:
@@ -236,26 +239,18 @@ class PaletteMappingAssertion(EffectAssertion):
         if before_name and transition_fraction is not None:
             before_path = find_palette_vpl(str(before_name), data_dir)
             before_expected = load_vpl_palette(before_path) if before_path else None
-            before_observed = self._extract_palette_colors(
-                mp4_path,
-                properties,
-                verbose,
-                (float(transition_fraction) - 0.2, float(transition_fraction) - 0.1),
-            )
-            if before_expected is None or before_observed is None:
+            if before_expected is None:
                 return AssertionResult(
                     status=AssertionStatus.FAIL,
                     name=self.name,
-                    message=f"Could not verify palette before transition: {before_name}",
+                    message=f"Could not load the palette expected before the transition: {before_name}",
                 )
-            before_delta, before_failures, _ = self._compare_palettes(
-                before_expected, before_observed, verbose
-            )
-            if before_failures:
+            transition = self._check_transition(mp4_path, properties, before_expected, expected_colors, verbose)
+            if transition is not None:
                 return AssertionResult(
                     status=AssertionStatus.FAIL,
                     name=self.name,
-                    message=f"Palette before transition did not match {before_name}: max delta {before_delta:.1f}",
+                    message=f"Palette transition {before_name} -> {palette_name}: {transition}",
                 )
 
         if failing_indices:
@@ -385,8 +380,12 @@ class PaletteMappingAssertion(EffectAssertion):
 
             self.log(f"Video: {width}x{height}, {total_frames} frames @ {fps:.2f} fps", verbose)
 
-            # Detect content bounds to find the C64 video region
-            bounds = detect_content_bounds(mp4_path)
+            # Detect content bounds to find the C64 video region (once per
+            # recording: it scans the whole file).
+            cache = self.__dict__.setdefault("_content_bounds_cache", {})
+            if str(mp4_path) not in cache:
+                cache[str(mp4_path)] = detect_content_bounds(mp4_path)
+            bounds = cache[str(mp4_path)]
 
             if bounds is None:
                 self.log("Could not detect content bounds, using defaults", verbose)
@@ -587,6 +586,48 @@ class PaletteMappingAssertion(EffectAssertion):
             bottom = height
 
         return left, right, top, bottom
+
+    TRANSITION_WINDOWS = 10
+
+    def _check_transition(
+        self,
+        mp4_path: Path,
+        properties: dict[str, Any],
+        before: list[tuple[int, int, int]],
+        after: list[tuple[int, int, int]],
+        verbose: bool,
+    ) -> Optional[str]:
+        """Samples the content in equal windows and classifies each as the
+        before or the after palette. The recording must show the before
+        palette first, then the after palette, never back, and every window
+        must match one of them. Where the change happens depends on how long
+        OBS took to start, so no fixed position is assumed. Returns None when
+        the transition is as expected, else a description of the problem."""
+        labels = []
+        for index in range(self.TRANSITION_WINDOWS):
+            window = (index / self.TRANSITION_WINDOWS, (index + 1) / self.TRANSITION_WINDOWS)
+            observed = self._extract_palette_colors(mp4_path, properties, False, window)
+            if observed is None:
+                return f"no palette colours in window {window[0]:.1f}-{window[1]:.1f}"
+            before_delta, before_failures, _ = self._compare_palettes(before, observed, False)
+            after_delta, after_failures, _ = self._compare_palettes(after, observed, False)
+            if not before_failures and (after_failures or before_delta <= after_delta):
+                labels.append("B")
+            elif not after_failures:
+                labels.append("A")
+            else:
+                # A window spanning the change mixes both palettes; it may
+                # only sit between the two runs.
+                labels.append("?")
+            self.log(
+                f"Window {window[0]:.1f}-{window[1]:.1f}: {labels[-1]} "
+                f"(before delta {before_delta:.1f}, after delta {after_delta:.1f})",
+                verbose,
+            )
+        sequence = "".join(labels)
+        if not re.fullmatch(r"B+\??A+", sequence):
+            return f"expected before palette, then after palette; window sequence was {sequence}"
+        return None
 
     def _compare_palettes(
         self,

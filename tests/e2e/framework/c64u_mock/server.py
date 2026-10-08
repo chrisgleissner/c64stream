@@ -6,10 +6,11 @@ import time
 import logging
 import queue
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 from typing import Any, Tuple, Optional
 
 from ..environment import Environment
+from .ftp import MockFtpServer
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,39 @@ class MockC64UServer:
         self.keyboard_events: list[Any] = []
         self.rest_stream_starts: list[tuple[int, bool]] = []
         self.reject_runtime_palette = False
+        # Follow device palette: the "Palette Definition" setting (None: the
+        # firmware has no such setting) and the files in /Flash/data, served
+        # over REST (setting, file size) and FTP (content) like the device.
+        self.palette_setting: Optional[str] = None
+        self.palette_files: dict[str, bytes] = {}
+        self.palette_setting_requests = 0
+        self.ftp_server: Optional[MockFtpServer] = None
+        self._palette_lock = threading.Lock()
+
+    def set_palette_setting(self, name: str) -> None:
+        with self._palette_lock:
+            self.palette_setting = name
+        logger.info(f"🎨 Mock Palette Definition set to {name!r}")
+
+    def enable_palette_files(self, files: dict[str, bytes], ftp_port: int = 21) -> bool:
+        """Serves files from /Flash/data over FTP (port 21 on real hardware).
+        A topology device with its own "palette_file_data" serves those."""
+        with self._palette_lock:
+            self.palette_files = dict(files)
+        self.ftp_server = MockFtpServer(self._palette_files_for, port=ftp_port)
+        return self.ftp_server.start()
+
+    def _palette_files_for(self, local_host: Optional[str] = None) -> dict[str, bytes]:
+        device = self._device_for_host(local_host) if (local_host and self.devices_by_host) else None
+        if device is not None and "palette_file_data" in device:
+            return device["palette_file_data"]
+        return self.palette_files
+
+    def _palette_setting_for(self, local_host: str) -> Optional[str]:
+        device = self._device_for_host(local_host) if self.devices_by_host else None
+        if device is not None and "palette_setting" in device:
+            return device["palette_setting"]
+        return self.palette_setting
 
     def start(self):
         """Start the TCP control server, and the REST server if configured."""
@@ -152,6 +186,8 @@ class MockC64UServer:
                 self.rest_server.server_close()
             except Exception:
                 pass
+        if self.ftp_server:
+            self.ftp_server.stop()
         # Threads are daemon, will exit naturally
 
     def wait_for_trigger(self, timeout: float = 30) -> bool:
@@ -358,6 +394,25 @@ class MockC64UServer:
                         "unique_id": device["unique_id"],
                         "firmware_version": "9.9",
                     })
+                elif unquote(path.path) == "/v1/configs/U64 Specific Settings/Palette Definition":
+                    with mock._palette_lock:
+                        mock.palette_setting_requests += 1
+                        setting = mock._palette_setting_for(self.connection.getsockname()[0])
+                    if setting is None:
+                        self._send_json({"errors": ["Category not found"]}, 404)
+                        return
+                    self._send_json({"U64 Specific Settings": {"Palette Definition": {
+                        "current": setting,
+                        "presets": sorted(mock._palette_files_for(self.connection.getsockname()[0])), "default": ""}}})
+                elif path.path.startswith("/v1/files/flash/data/") and path.path.endswith(":info"):
+                    name = unquote(path.path[len("/v1/files/flash/data/"):-len(":info")])
+                    with mock._palette_lock:
+                        data = mock._palette_files_for(self.connection.getsockname()[0]).get(name)
+                    if data is None:
+                        self._send_json({"errors": ["File not found"]}, 404)
+                        return
+                    self._send_json({"files": {"path": f"/flash/data/{name}", "filename": name,
+                                               "size": len(data), "extension": "VPL"}})
                 elif path.path == "/v1/machine:readmem":
                     params = parse_qs(path.query)
                     address = int(params.get("address", ["0"])[0], 16)
@@ -385,7 +440,9 @@ class MockC64UServer:
                     palette_requested = params.get("palette", ["0"])[0] == "1"
                     with mock._events_lock:
                         mock.rest_stream_starts.append((stream_id, palette_requested))
-                    if stream_id == 0 and palette_requested and mock.reject_runtime_palette:
+                    device = mock._device_for_host(self.connection.getsockname()[0]) if mock.devices_by_host else None
+                    reject = (device or {}).get("reject_runtime_palette", mock.reject_runtime_palette)
+                    if stream_id == 0 and palette_requested and reject:
                         self._send_json({"errors": ["Unsupported parameter: palette"]}, 400)
                         return
                     local_host = self.connection.getsockname()[0]

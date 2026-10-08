@@ -6,6 +6,7 @@ import socket
 import uuid
 import hashlib
 import base64
+import os
 from typing import Optional, Dict, Any, Union
 
 from ..environment import Environment
@@ -26,11 +27,36 @@ class OBSWebsocketClient:
     def __init__(self, env: Environment, enabled: bool = True):
         self.env = env
         self.enabled = enabled and WEBSOCKET_AVAILABLE
-        self.url = "ws://127.0.0.1:4455"
+        self.port = self._choose_port()
+        self.url = f"ws://127.0.0.1:{self.port}"
         self.password = "e2etest123"
 
         if enabled and not WEBSOCKET_AVAILABLE:
             logger.warning("⚠️ WebSocket requested but 'websocket-client' package not found.")
+
+    @staticmethod
+    def _listening(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(1)
+            return sock.connect_ex(('127.0.0.1', port)) == 0
+
+    @classmethod
+    def _choose_port(cls) -> int:
+        """4455 (the obs-websocket default) unless C64_E2E_OBS_WS_PORT says
+        otherwise or another OBS, such as the developer's own, already uses
+        it; then a free port, so test requests never reach that OBS."""
+        configured = os.environ.get('C64_E2E_OBS_WS_PORT')
+        if configured:
+            return int(configured)
+        if not cls._listening(4455):
+            return 4455
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(('127.0.0.1', 0))
+            return sock.getsockname()[1]
+
+    def port_in_use(self) -> bool:
+        """True if something already listens on the WebSocket port."""
+        return self._listening(self.port)
 
     def wait_for_server(self, timeout: float = 30) -> bool:
         """Wait for OBS WebSocket server to be ready."""
@@ -44,7 +70,7 @@ class OBSWebsocketClient:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1)
-                result = sock.connect_ex(('127.0.0.1', 4455))
+                result = sock.connect_ex(('127.0.0.1', self.port))
                 sock.close()
 
                 if result == 0:

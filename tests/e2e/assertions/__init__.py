@@ -20,6 +20,7 @@ from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
 from .discovered_stream_patterns import DiscoveredStreamPatternsAssertion
+from .palette_device_pairs import PaletteDevicePairsAssertion
 from .config import (
     PresetConfig,
     load_preset_from_ini,
@@ -93,4 +94,5 @@ __all__ = [
     "AssertionRunner",
     "create_preset_assertions",
     "create_assertions_from_list",
+    "PaletteDevicePairsAssertion",
 ]

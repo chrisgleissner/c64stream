@@ -120,6 +120,49 @@ class E2EOrchestrator:
         # Results
         self.results = {}
 
+    def _configure_mock_device_palette(self) -> None:
+        """Follow device palette scenarios: the mock's Palette Definition
+        setting, its /Flash/data files (from data/palettes) and setting changes
+        at given times on the replay timeline."""
+        sim = self.network_simulation
+        palettes_dir = Path(__file__).resolve().parents[3] / 'data' / 'palettes'
+        # Topology devices may carry their own palette setting and files
+        # (device keys palette_setting and palette_files).
+        topology = {str(d["id"]): d for d in self.mock_server.devices_by_host.values()}
+        for device in topology.values():
+            if 'palette_files' in device:
+                device['palette_file_data'] = {f'{name}.vpl': (palettes_dir / f'{name}.vpl').read_bytes()
+                                               for name in device['palette_files']}
+        uses_device_palettes = any('palette_setting' in d for d in topology.values())
+        if 'device_palette_setting' not in sim and not uses_device_palettes:
+            return
+        files = {f'{name}.vpl': (palettes_dir / f'{name}.vpl').read_bytes()
+                 for name in sim.get('device_palette_files', [])}
+        if not self.mock_server.enable_palette_files(files):
+            raise RuntimeError("Failed to start the mock FTP server (port 21)")
+        if 'device_palette_setting' in sim:
+            self.mock_server.set_palette_setting(str(sim['device_palette_setting'] or ''))
+        actions = []
+        for change in sim.get('device_palette_setting_changes', []):
+            name = str(change.get('name') or '')
+            actions.append((float(change['at_ms']) / 1000.0,
+                            lambda name=name: self.mock_server.set_palette_setting(name)))
+        if self.replayer:
+            self.replayer.scheduled_actions = actions
+
+    def _check_mock_device_palette(self) -> None:
+        expected = self.network_simulation.get('expected_palette_downloads')
+        if expected is None or not self.mock_server or not self.mock_server.ftp_server:
+            return
+        downloaded = list(self.mock_server.ftp_server.retrievals)
+        logger.info(f"🎨 Palette setting requests: {self.mock_server.palette_setting_requests}, "
+                    f"FTP downloads: {downloaded}")
+        # Every expected file is downloaded, and nothing else. The worker
+        # downloads a cached file again on every 10th check (content recheck),
+        # so the count depends on the run length.
+        if set(downloaded) != set(expected):
+            raise RuntimeError(f"Expected palette downloads of {sorted(set(expected))}, got {downloaded}")
+
     def run(self) -> bool:
         """Execute the test scenario."""
         logger.info(f"🚀 Starting E2E Test: {self.format}, {self.frames} frames")
@@ -141,6 +184,8 @@ class E2EOrchestrator:
                 raise RuntimeError("Failed to setup plugin properties")
 
             profile = self.obs_config.create_obs_profile(self.format, self.scenario_overrides)
+            if self.obs_ws.enabled:
+                self.obs_config.write_websocket_config(self.obs_ws.port, self.obs_ws.password)
 
             # 3. Start Xvfb
             self.xvfb.start()
@@ -148,6 +193,7 @@ class E2EOrchestrator:
             # 4. Start Mock Server (if applicable)
             if self.mock_server:
                 self.mock_server.start()
+                self._configure_mock_device_palette()
                 self._start_mock_topology_streams()
             for port in self.extra_mock_control_ports:
                 extra_mock = MockC64UServer(self.env, control_port=port)
@@ -155,6 +201,13 @@ class E2EOrchestrator:
                 self.extra_mock_servers.append(extra_mock)
 
             # 5. Start OBS
+            # Before the test OBS starts, a listener on the WebSocket port is
+            # another OBS (on a developer machine, the user's own). Requests
+            # such as StopRecord and Exit must never reach it.
+            if self.obs_ws.enabled and self.obs_ws.port_in_use():
+                logger.warning("⚠️ Another OBS already serves the WebSocket port; "
+                               "WebSocket control is disabled for this run")
+                self.obs_ws.enabled = False
             # Note: OBS process start needs to be robust
             if not self.obs_process.start(profile_name=profile.name, start_recording=self.obs_start_recording):
                 raise RuntimeError("Failed to start OBS")
@@ -213,6 +266,8 @@ class E2EOrchestrator:
                 expected = list(expected_palette_requests)
                 if actual[:len(expected)] != expected:
                     raise RuntimeError(f"Expected video palette requests {expected}, got {actual}")
+
+            self._check_mock_device_palette()
 
             if self.wait_for_script_completion:
                 self.obs_logs.wait_for_script_completion(
@@ -307,8 +362,14 @@ class E2EOrchestrator:
             packet_dir = self.env.output_dir / f"mock-packets-{device_id}"
             generate_packets(packet_dir, num_frames=int(device.get("frames", 300)), formats=[self.format],
                              pattern=str(device.get("pattern", "diagonal")), disable_pops=True)
+            simulation = dict(self.network_simulation)
+            if device.get("stream_palette"):
+                # Firmware that reports its palette in the stream: the first
+                # palette packet shortly after the start, then every second.
+                simulation.update({"runtime_palette_vpl": device["stream_palette"],
+                                   "runtime_palette_delay_ms": 100, "runtime_palette_repeat_ms": 1000})
             replayers[device_id] = PacketReplayer(
-                self.env, self.format, self.network_simulation, packet_dir=packet_dir, lead_time_s=0.1
+                self.env, self.format, simulation, packet_dir=packet_dir, lead_time_s=0.1
             )
 
         # Like real hardware, a device streams one stream at a time. A stop

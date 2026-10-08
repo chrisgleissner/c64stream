@@ -22,6 +22,9 @@ class PacketReplayer:
         self.network_simulation = network_simulation or {}
         self.packet_dir = Path(packet_dir) if packet_dir else env.packet_dir
         self.lead_time_s = lead_time_s
+        # (seconds after replay start, callable): device-side changes that
+        # happen at a point of the replay timeline, e.g. a setting change.
+        self.scheduled_actions: list[tuple[float, Any]] = []
         self.simulation_stats = {
             'dropped_video': 0, 'dropped_audio': 0,
             'duplicated_video': 0, 'duplicated_audio': 0,
@@ -91,14 +94,20 @@ class PacketReplayer:
                     colors.extend(int(value, 16) for value in fields[:3])
             if len(colors) != 48:
                 raise ValueError(f"Expected 16 RGB colors in {palette_path}")
-            packet_path = video_dir / '.runtime-palette.bin'
+            # Unique per replay: several mock devices may replay at once.
+            packet_path = video_dir / f'.runtime-palette-{id(self)}.bin'
             packet_path.write_bytes(bytes([1, 0, 0, 0, 239, 0, 0x80, 1, 1, 4, 1, 0] + colors))
-            timeline.append({
-                'time_us': float(self.network_simulation.get('runtime_palette_delay_ms', 100)) * 1000,
-                'type': 'video',
-                'file': str(packet_path),
-                'dest': video_dest,
-            })
+            first_us = float(self.network_simulation.get('runtime_palette_delay_ms', 100)) * 1000
+            repeat_us = float(self.network_simulation.get('runtime_palette_repeat_ms', 0) or 0) * 1000
+            end_us = start_time_us + len(video_files) * video_interval_us
+            at_us = first_us
+            while True:
+                timeline.append({'time_us': at_us, 'type': 'video', 'file': str(packet_path), 'dest': video_dest})
+                if not repeat_us:
+                    break
+                at_us += repeat_us
+                if at_us >= end_us:
+                    break
 
         # Add audio packets to timeline
         for i, audio_file in enumerate(audio_files):
@@ -162,9 +171,19 @@ class PacketReplayer:
             audio_cmd.extend(['--bind-host', source_host])
 
         logger.info(f"🚀 Synchronized packet replay start: +{lead_s}s from now")
+        timers = []
+        for at_s, action in self.scheduled_actions:
+            delay_s = start_at_us / 1_000_000 + at_s - time.monotonic()
+            timer = threading.Timer(max(0.0, delay_s), action)
+            timer.daemon = True
+            timer.start()
+            timers.append(timer)
+            logger.info(f"⏱️ Scheduled device action at +{at_s:.2f}s of the replay (in {delay_s:.2f}s)")
         try:
             return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd, cancel)
         finally:
+            for timer in timers:
+                timer.cancel()
             if packet_path:
                 packet_path.unlink(missing_ok=True)
 
