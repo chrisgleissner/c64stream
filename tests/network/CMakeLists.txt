@@ -379,11 +379,13 @@ if(WIN32)
 endif()
 if(APPLE)
   # libobs is a framework referenced through @rpath; the test executables are
-  # not bundled, so point dyld at the framework's directory.
+  # not bundled, so point dyld at the directory that holds the framework.
+  get_target_property(C64_OBS_LIBRARY OBS::libobs LOCATION)
+  string(REGEX REPLACE "/[^/]+\\.framework/.*$" "" C64_OBS_FRAMEWORK_DIR "${C64_OBS_LIBRARY}")
   foreach(test_name IN LISTS C64_PLATFORM_CI_TESTS)
     set_tests_properties(
       ${test_name}
-      PROPERTIES ENVIRONMENT_MODIFICATION "DYLD_FRAMEWORK_PATH=path_list_prepend:$<TARGET_BUNDLE_DIR:OBS::libobs>/.."
+      PROPERTIES ENVIRONMENT_MODIFICATION "DYLD_FRAMEWORK_PATH=path_list_prepend:${C64_OBS_FRAMEWORK_DIR}"
     )
   endforeach()
 endif()
