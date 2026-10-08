@@ -102,10 +102,13 @@ void *audio_thread_func(void *data)
 
         // Ingest ownership filter: drop packets from a sender that is not the
         // expected peer (e.g. an abandoned device still streaming).
-        if (!c64_packet_from_expected_peer(context, &sender_addr)) {
+        const bool from_handover = c64_packet_from_handover(context, &sender_addr);
+        if (!c64_packet_admit(context, &sender_addr)) {
             os_atomic_inc_long(&context->debug_packets_dropped_peer);
             if ((os_atomic_load_long(&context->debug_packets_dropped_peer) & 0x3FF) == 0) {
-                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " dropped packet: sender != expected peer (%ld total dropped)",
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX
+                              " dropped packet: sender %u.%u.%u.%u != expected peer (%ld total dropped)",
+                              C64_IPV4_ARGS(context->rejected_peer_ip),
                               os_atomic_load_long(&context->debug_packets_dropped_peer));
             }
             continue;
@@ -122,7 +125,8 @@ void *audio_thread_func(void *data)
         os_atomic_set_long(&context->audio_bytes_received,
                            os_atomic_load_long(&context->audio_bytes_received) + (long)received);
 
-        (void)c64_network_fifo_push(&context->audio_fifo, packet, (uint16_t)received, packet_time);
+        (void)c64_network_fifo_push_tagged(&context->audio_fifo, packet, (uint16_t)received, packet_time,
+                                           from_handover);
     }
 
     C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio thread stopped for C64 Stream source '%s'",

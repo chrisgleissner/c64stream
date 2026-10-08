@@ -145,9 +145,7 @@ target_include_directories(test_frame_height_clamp PRIVATE ${CMAKE_SOURCE_DIR}/s
 add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
 
 add_executable(test_c64_palette_packet test_c64_palette_packet.c)
-target_include_directories(
-  test_c64_palette_packet PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network
-)
+target_include_directories(test_c64_palette_packet PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network)
 add_test(NAME c64_palette_packet COMMAND test_c64_palette_packet)
 
 # C64STR-010/011: WAV header carries the true rate and clamps past 4 GiB.
@@ -328,3 +326,70 @@ else()
   target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl iphlpapi ws2_32)
 endif()
 add_test(NAME c64_device_scan COMMAND test_c64_device_scan)
+
+add_executable(test_c64_device_switch test_c64_device_switch.c ${CMAKE_SOURCE_DIR}/src/device/c64-device-switch.c)
+target_include_directories(test_c64_device_switch PRIVATE ${CMAKE_SOURCE_DIR}/src/device)
+add_test(NAME c64_device_switch COMMAND test_c64_device_switch)
+
+add_executable(
+  test_c64_device_scan_hermetic
+  test_c64_device_scan_hermetic.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
+  ${CMAKE_SOURCE_DIR}/src/network/c64-network.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/util/c64-file.c
+)
+target_include_directories(
+  test_c64_device_scan_hermetic
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/device
+    ${CMAKE_SOURCE_DIR}/src/network
+    ${CMAKE_SOURCE_DIR}/src/util
+    ${CMAKE_SOURCE_DIR}/src/video
+)
+if(UNIX)
+  target_link_libraries(test_c64_device_scan_hermetic PRIVATE OBS::libobs CURL::libcurl m resolv)
+else()
+  target_link_libraries(test_c64_device_scan_hermetic PRIVATE OBS::libobs CURL::libcurl iphlpapi ws2_32)
+endif()
+add_test(NAME c64_device_scan_hermetic COMMAND test_c64_device_scan_hermetic)
+
+# Discovery and device switch tests also run in the macOS and Windows CI
+# builds (see .github/scripts). On Windows the test executables need the OBS
+# and libcurl DLLs, which live next to the imported libraries.
+set(
+  C64_PLATFORM_CI_TESTS
+  c64_device
+  c64_device_scan
+  c64_device_scan_hermetic
+  c64_device_switch
+  c64_ingest_filter
+  c64_stream_control
+)
+if(WIN32)
+  foreach(test_name IN LISTS C64_PLATFORM_CI_TESTS)
+    set_tests_properties(
+      ${test_name}
+      PROPERTIES
+        ENVIRONMENT_MODIFICATION
+          "PATH=path_list_prepend:$<TARGET_FILE_DIR:OBS::libobs>;PATH=path_list_prepend:$<TARGET_FILE_DIR:CURL::libcurl>"
+    )
+  endforeach()
+endif()
+if(APPLE)
+  # libobs is a framework referenced through @rpath; the test executables are
+  # not bundled, so point dyld at the directory that holds the framework.
+  get_target_property(C64_OBS_LIBRARY OBS::libobs LOCATION)
+  string(REGEX REPLACE "/[^/]+\\.framework/.*$" "" C64_OBS_FRAMEWORK_DIR "${C64_OBS_LIBRARY}")
+  # libobs in turn loads FFmpeg and other dylibs from the OBS dependency
+  # prefixes.
+  set(C64_DYLD_MODIFICATIONS "DYLD_FRAMEWORK_PATH=path_list_prepend:${C64_OBS_FRAMEWORK_DIR}")
+  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
+    list(APPEND C64_DYLD_MODIFICATIONS "DYLD_LIBRARY_PATH=path_list_append:${prefix}/lib")
+  endforeach()
+  foreach(test_name IN LISTS C64_PLATFORM_CI_TESTS)
+    set_tests_properties(${test_name} PROPERTIES ENVIRONMENT_MODIFICATION "${C64_DYLD_MODIFICATIONS}")
+  endforeach()
+endif()
+set_tests_properties(${C64_PLATFORM_CI_TESTS} PROPERTIES LABELS platform-ci)

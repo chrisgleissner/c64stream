@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Device discovery and switching (hardware-tested)
+
+- Switching devices is make-before-break: the new device is started first while the old
+  picture keeps running, and the old device is stopped once the new one delivers video (at most
+  five seconds later). The pause without video is typically 30-60 ms (previously about 0.5 s,
+  and up to 15 s when the old device was offline); a device that is slow to start no longer
+  causes a blank screen.
+- A source whose device is off or unreachable when OBS starts now connects as soon as the
+  device appears. In 1.2.0-rc2 it never retried after the first failed start.
+- A device selected from the list stays selected while it is switched off, instead of the
+  startup scan moving the source to another device that happened to answer.
+- Entering the Wi-Fi address of an Ultimate in **C64U Host** works again: A/V that arrives from
+  another address of the same device (verified by its REST `unique_id`) is accepted. In
+  1.2.0-rc2 every packet was dropped and the picture stayed black.
+- Switching to a device that is switched off shows the logo instead of freezing the previous
+  device's last frame, and switching back to a live device takes under 0.5 s.
+- Discovery probes every local network within its deadline on machines with Docker, libvirt,
+  Hyper-V or VPN adapters, starting with the network that carries the default route; long
+  hostnames are no longer truncated; larger `/v1/info` responses are accepted; startup results
+  apply after the first sweep instead of after the retry pass; a migrated "Default" profile is
+  no longer listed twice after discovery identifies it.
+- Stream start and stop requests over REST are bounded at 1.5 s. When the device's web server
+  does not answer (it occasionally stalls one request), AUTO transport sends that command over
+  the control port instead, without demoting REST. A stalled request previously held a device
+  switch for five seconds.
+- New tests: hermetic discovery tests against fake devices and switch-queue tests run in CI on
+  Linux, macOS and Windows; the `ntsc_device_switch_speed` E2E scenario checks on every build
+  that every switch between live devices pauses video for at most one second; a local
+  hardware-in-the-loop suite (`doc/testing/discovery-hil.md`).
+- A device rebooting in the middle of a legacy control command can no longer terminate OBS with
+  `SIGPIPE`, and connection checks no longer use `select()` on descriptors above `FD_SETSIZE`.
+
 ### Experimental: follow the device palette
 
 - **Palette → Follow device** and `PALETTE "device"` use the palette the Ultimate is currently

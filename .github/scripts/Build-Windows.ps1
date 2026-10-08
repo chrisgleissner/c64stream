@@ -81,7 +81,12 @@ function Build {
         Log-Group "Running tests..."
         Invoke-External ctest @('--test-dir', "build_${Target}", '--verbose', '--output-on-failure', '--config', $Configuration)
     } else {
-        Write-Information "Skipping tests in CI environment (tests disabled for CI builds)"
+        # The full suite is not run in CI builds, but the discovery and device
+        # switch tests are: they exercise the Windows socket, threading and
+        # adapter-enumeration code that only this platform runs.
+        Log-Group "Running platform tests (discovery and device switch)..."
+        $CtestArgs = @('--test-dir', "build_${Target}", '--output-on-failure', '-C', $Configuration, '-L', 'platform-ci')
+        Invoke-External ctest @CtestArgs
     }
 
     Log-Group "Installing ${ProductName}..."

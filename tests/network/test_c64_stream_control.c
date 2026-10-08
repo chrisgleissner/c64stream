@@ -243,6 +243,22 @@ TEST(device_palette_rejection_retries_without_palette)
     assert(!g_rest.last_start_palette);
 }
 
+// A stalled REST start falls back to legacy for that start only; the device
+// still gets runtime palettes requested on the next start.
+TEST(rest_stall_keeps_device_palette_supported)
+{
+    reset_stubs();
+    struct c64_source ctx;
+    init_follow_ctx(&ctx);
+    g_rest.start_ok = false;
+    g_rest.start_outcome = C64_REST_UNREACHABLE;
+
+    assert(c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest"));
+    assert(g_legacy.calls == 1);
+    assert(ctx.device_palette_request_supported);
+    assert(ctx.device_palette_status != C64_DEVICE_PALETTE_UNSUPPORTED);
+}
+
 TEST(not_supported_404_demotes_permanently_and_falls_back)
 {
     reset_stubs();
@@ -307,7 +323,9 @@ TEST(forbidden_403_never_falls_back)
     assert(ctx.stream_rest_demoted_until_ns == 0);
 }
 
-TEST(unreachable_never_falls_back)
+// A REST request without an answer (stalled web server) is retried once over
+// the control port, without demoting REST for later commands.
+TEST(unreachable_tries_legacy_without_demotion)
 {
     reset_stubs();
     struct c64_source ctx;
@@ -320,9 +338,26 @@ TEST(unreachable_never_falls_back)
 
     bool ok = c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest");
 
-    assert(!ok);
-    assert(g_legacy.calls == 0);
+    assert(ok == g_legacy.ok);
+    assert(g_legacy.calls == 1);
     assert(ctx.stream_rest_demoted_until_ns == 0);
+
+    // Device really down: both fail, still no demotion.
+    reset_stubs();
+    g_rest.start_ok = false;
+    g_rest.start_outcome = C64_REST_UNREACHABLE;
+    g_legacy.ok = false;
+    assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest"));
+    assert(g_legacy.calls == 1);
+    assert(ctx.stream_rest_demoted_until_ns == 0);
+
+    // Force REST never falls back.
+    reset_stubs();
+    ctx.stream_control_transport = C64_STREAM_TRANSPORT_REST;
+    g_rest.start_ok = false;
+    g_rest.start_outcome = C64_REST_UNREACHABLE;
+    assert(!c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest"));
+    assert(g_legacy.calls == 0);
 }
 
 TEST(bad_request_never_falls_back)
@@ -365,11 +400,10 @@ TEST(forced_legacy_never_tries_rest)
 {
     reset_stubs();
     struct c64_source ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Follow mode locks palette_mutex. A zeroed pthread mutex happens to work
+    // on Linux but crashes on Windows (w32-pthreads), so initialise it.
+    init_follow_ctx(&ctx);
     ctx.stream_control_transport = C64_STREAM_TRANSPORT_LEGACY;
-    ctx.rest_client = kDummyClient;
-    ctx.follow_device_palette = true;
-    ctx.device_palette_request_supported = true;
 
     bool ok = c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest");
 
@@ -402,7 +436,7 @@ TEST(permanent_demotion_skips_rest_on_next_call)
 {
     reset_stubs();
     struct c64_source ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    init_follow_ctx(&ctx); // initialises palette_mutex, needed by follow mode
     ctx.stream_control_transport = C64_STREAM_TRANSPORT_AUTO;
     ctx.rest_client = kDummyClient;
     ctx.stream_rest_demoted_until_ns = UINT64_MAX;
@@ -584,15 +618,18 @@ TEST(wrapper_null_context_returns_false)
 
 int main(void)
 {
+    // Unbuffered, so the last test started is visible if the process crashes.
+    setvbuf(stdout, NULL, _IONBF, 0);
     RUN_TEST(should_fallback_only_for_not_supported);
     RUN_TEST(rest_success_never_falls_back);
     RUN_TEST(device_palette_is_requested_only_for_video);
     RUN_TEST(video_start_in_follow_mode_resets_palette_generation_baseline);
     RUN_TEST(device_palette_rejection_retries_without_palette);
+    RUN_TEST(rest_stall_keeps_device_palette_supported);
     RUN_TEST(not_supported_404_demotes_permanently_and_falls_back);
     RUN_TEST(not_supported_501_demotes_with_expiry_and_falls_back);
     RUN_TEST(forbidden_403_never_falls_back);
-    RUN_TEST(unreachable_never_falls_back);
+    RUN_TEST(unreachable_tries_legacy_without_demotion);
     RUN_TEST(bad_request_never_falls_back);
     RUN_TEST(server_error_never_falls_back);
     RUN_TEST(forced_legacy_never_tries_rest);

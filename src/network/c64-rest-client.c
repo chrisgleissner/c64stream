@@ -19,6 +19,11 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define REST_LOG_PREFIX "📡 REST: "
 #define HTTP_TIMEOUT_SECONDS 5
+// Stream start/stop answer within tens of milliseconds on a healthy device.
+// The Ultimate's web server occasionally stalls a single request; bounding
+// these keeps such a stall from freezing a device switch for five seconds,
+// and the caller falls back to the control port (see c64-stream-control.c).
+#define C64_REST_STREAM_CONTROL_TIMEOUT_MS 1500L
 #define C64_REST_MAX_RESPONSE_BYTES (1024U * 1024U)
 
 struct c64_rest_client {
@@ -29,7 +34,26 @@ struct c64_rest_client {
     c64_rest_outcome_t last_outcome;
     CURL *curl;
     pthread_mutex_t mutex;
+    // Upper bound for any single request, 0 for the per-request default. Set
+    // for clients whose requests must not hold up their caller for long,
+    // such as the teardown of a device that was switched away from.
+    long timeout_cap_ms;
+    // Bound for the request currently being made under the mutex, 0 for none.
+    long call_timeout_ms;
 };
+
+static void c64_rest_apply_timeout(c64_rest_client_t *client, long timeout_seconds)
+{
+    long timeout_ms = timeout_seconds * 1000L;
+    if (client->timeout_cap_ms > 0 && client->timeout_cap_ms < timeout_ms) {
+        timeout_ms = client->timeout_cap_ms;
+    }
+    if (client->call_timeout_ms > 0 && client->call_timeout_ms < timeout_ms) {
+        timeout_ms = client->call_timeout_ms;
+    }
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT_MS, timeout_ms);
+    curl_easy_setopt(client->curl, CURLOPT_CONNECTTIMEOUT_MS, timeout_ms);
+}
 
 c64_rest_outcome_t c64_rest_classify_status(long status)
 {
@@ -533,7 +557,7 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
 
     // Set common curl options - CRITICAL: NOSIGNAL must be set to prevent crashes on Windows
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
     curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
     curl_easy_setopt(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
 
@@ -606,6 +630,16 @@ bool c64_rest_client_retarget(c64_rest_client_t *client, const char *base_url, c
     return true;
 }
 
+void c64_rest_client_set_timeout_cap(c64_rest_client_t *client, long timeout_ms)
+{
+    if (!client) {
+        return;
+    }
+    pthread_mutex_lock(&client->mutex);
+    client->timeout_cap_ms = timeout_ms;
+    pthread_mutex_unlock(&client->mutex);
+}
+
 bool c64_rest_client_get_base_url(const c64_rest_client_t *client, char *buf, size_t buf_size)
 {
     if (!client || !buf || buf_size == 0) {
@@ -649,7 +683,7 @@ static bool http_request_ex_locked(c64_rest_client_t *client, const char *method
     // CRITICAL: After curl_easy_reset, we must re-set NOSIGNAL to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
 
     // Set custom headers
@@ -784,8 +818,10 @@ bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, c
     snprintf(query, sizeof(query), "ip=%s%s", escaped_destination, (!audio && palette) ? "&palette=1" : "");
     curl_free(escaped_destination);
     pthread_mutex_lock(&client->mutex);
+    client->call_timeout_ms = C64_REST_STREAM_CONTROL_TIMEOUT_MS;
     const bool ok = http_request_ex_locked(client, "PUT", audio ? "/v1/streams/audio:start" : "/v1/streams/video:start",
                                            query, NULL, 0, NULL, false);
+    client->call_timeout_ms = 0;
     if (outcome) {
         *outcome = client->last_outcome;
     }
@@ -807,8 +843,10 @@ bool c64_rest_stream_stop_with_outcome(c64_rest_client_t *client, bool audio, c6
         return false;
     }
     pthread_mutex_lock(&client->mutex);
+    client->call_timeout_ms = C64_REST_STREAM_CONTROL_TIMEOUT_MS;
     const bool ok = http_request_ex_locked(client, "PUT", audio ? "/v1/streams/audio:stop" : "/v1/streams/video:stop",
                                            NULL, NULL, 0, NULL, false);
+    client->call_timeout_ms = 0;
     if (outcome) {
         *outcome = client->last_outcome;
     }
@@ -1053,7 +1091,7 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
     // Set CURL options
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+    c64_rest_apply_timeout(client, 5L);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1121,7 +1159,7 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
     // Set CURL options
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+    c64_rest_apply_timeout(client, 5L);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1196,7 +1234,7 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
     // Set CURL options
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+    c64_rest_apply_timeout(client, 5L);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1268,7 +1306,7 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1333,7 +1371,7 @@ bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
     curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1396,7 +1434,7 @@ bool c64_rest_play_mod(c64_rest_client_t *client, const uint8_t *mod_data, size_
     // Set CURL options
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+    c64_rest_apply_timeout(client, 5L);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1465,7 +1503,7 @@ bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path)
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1530,7 +1568,7 @@ bool c64_rest_run_crt(c64_rest_client_t *client, const uint8_t *crt_data, size_t
     // Set CURL options
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+    c64_rest_apply_timeout(client, 5L);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1599,7 +1637,7 @@ bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1664,7 +1702,7 @@ bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
     curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
     struct curl_slist *headers = NULL;
@@ -1815,7 +1853,7 @@ bool c64_rest_drive_mount_upload(c64_rest_client_t *client, const char *drive, c
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     struct curl_slist *headers = NULL;
     if (client->password && client->password[0]) {
@@ -1957,7 +1995,7 @@ bool c64_rest_drive_load_rom_upload(c64_rest_client_t *client, const char *drive
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     struct curl_slist *headers = NULL;
     if (client->password && client->password[0]) {
@@ -2715,7 +2753,7 @@ bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recur
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Setup response buffer
     response_buffer_t resp = {0};
@@ -2796,7 +2834,7 @@ bool c64_rest_stat_file(c64_rest_client_t *client, const char *path, bool *is_di
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_NOBODY, 1L); // HEAD request
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    c64_rest_apply_timeout(client, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
     struct curl_slist *headers = NULL;

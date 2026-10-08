@@ -39,6 +39,10 @@ bool c64_device_registry_upsert_discovered(const c64_device_t *device);
 bool c64_device_registry_delete(const char *id);
 void c64_device_registry_populate_list(obs_property_t *property);
 bool c64_device_id_from_host(char *out, size_t out_size, const char *unique_id, const char *host);
+/* True when the profile is keyed by a hardware unique_id, i.e. its id is not
+ * simply derived from its host or peer address (legacy migration, manual Save
+ * of a new host, or a password-protected device discovered without its ID). */
+bool c64_device_profile_is_identified(const c64_device_t *device);
 
 /* First-load compatibility migration.  Password handling is intentionally
  * confined to OBS settings; this function never writes it to an INI file. */
@@ -50,5 +54,14 @@ void c64_device_password_key(char *out, size_t out_size, const char *id);
  * A/V streams only leave the wired LAN port. Promote a verified alternate
  * address only after a completed start has produced no video for the grace
  * interval, and never retry that promotion automatically. */
+/* A started stream that has produced no video while the ingest filter keeps
+ * rejecting one sender is checked once per sender (re-checked after
+ * recheck_ns): that sender may be the selected device's wired port while the
+ * source is configured with its Wi-Fi address. */
+bool c64_device_sender_check_due(uint32_t rejected_ip, uint32_t expected_ip, bool alt_set, uint32_t alt_ip,
+                                 bool learned_set, uint32_t learned_ip, uint32_t last_checked_ip,
+                                 uint64_t last_checked_ns, uint64_t no_video_since_ns, uint64_t now_ns,
+                                 uint64_t grace_ns, uint64_t recheck_ns);
+
 bool c64_device_stream_failover_needed(bool alternate_available, bool already_attempted, uint64_t no_video_since_ns,
                                        uint64_t now_ns, uint64_t grace_ns);

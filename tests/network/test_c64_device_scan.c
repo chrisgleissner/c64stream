@@ -69,17 +69,37 @@ static bool test_prefix_clamp_and_own_address(void)
 
 static bool test_selection_apply_policy(void)
 {
-    CHECK(c64_device_scan_should_apply_selection("", "", false, "device-a"));
-    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, ""));
+    CHECK(c64_device_scan_should_apply_selection("", "", false, true, "device-a"));
+    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, false, ""));
     // A responsive previously selected device is deliberate: discovery may
     // refresh its profile, but must not replace it with another device.
-    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, "device-b"));
-    CHECK(!c64_device_scan_should_apply_selection("device-a", "device-a", false, ""));
-    // If the prior selection no longer answers, only one unambiguous
-    // replacement is allowed to take over automatically.
-    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", false, "device-b"));
-    CHECK(!c64_device_scan_should_apply_selection("device-a", "device-b", false, "device-c"));
-    CHECK(c64_device_scan_should_apply_selection("my-device", "my-device", false, "other-device"));
+    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, false, "device-b"));
+    CHECK(!c64_device_scan_should_apply_selection("device-a", "device-a", false, true, ""));
+    // A placeholder selection (legacy host-derived id) that no longer answers
+    // is replaced by one unambiguous result.
+    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", false, true, "device-b"));
+    CHECK(!c64_device_scan_should_apply_selection("device-a", "device-b", false, true, "device-c"));
+    CHECK(c64_device_scan_should_apply_selection("my-device", "my-device", false, true, "other-device"));
+    // A hardware-identified device that is switched off stays selected even
+    // when exactly one other device answers: no hopping between machines.
+    CHECK(!c64_device_scan_should_apply_selection("5d0464", "5d0464", false, false, "38c1ba"));
+    return true;
+}
+
+static bool test_profile_identification(void)
+{
+    c64_device_t device = {0};
+    strcpy(device.id, "5d0464");
+    strcpy(device.host, "192.168.1.146");
+    CHECK(c64_device_profile_is_identified(&device));
+    strcpy(device.id, "c64u");
+    strcpy(device.host, "c64u");
+    CHECK(!c64_device_profile_is_identified(&device)); // legacy migration / manual Save
+    strcpy(device.id, "192-168-1-64");
+    strcpy(device.host, "192.168.1.70");
+    strcpy(device.peer_host, "192.168.1.64");
+    CHECK(!c64_device_profile_is_identified(&device)); // promoted peer of a host-keyed profile
+    CHECK(!c64_device_profile_is_identified(NULL));
     return true;
 }
 
@@ -184,6 +204,9 @@ static bool test_discovery_preserves_migrated_profile(void)
     discovered.audio_port = 11001;
     discovered.control_port = 64;
     CHECK(c64_device_registry_upsert_discovered(&discovered));
+    // The host-keyed profile is replaced, not duplicated in the dropdown.
+    CHECK(c64_device_registry_get(migrated.id) == NULL);
+    CHECK(c64_device_registry_count() == 1);
     const c64_device_t *actual = c64_device_registry_get(discovered.id);
     CHECK(actual != NULL);
     CHECK(strcmp(actual->id, discovered.id) == 0);
@@ -228,7 +251,7 @@ int main(void)
         return 1;
     }
     if (!test_product_matching() || !test_error_envelope() || !test_prefix_clamp_and_own_address() ||
-        !test_selection_apply_policy() || !test_apply_scan_results_supersession() ||
+        !test_selection_apply_policy() || !test_profile_identification() || !test_apply_scan_results_supersession() ||
         !test_rescan_preserves_saved_settings() || !test_discovery_preserves_migrated_profile()) {
         return 1;
     }

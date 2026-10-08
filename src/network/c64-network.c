@@ -12,6 +12,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network.h"
 #include "plugin-support.h"
 
+#ifndef _WIN32
+#include <poll.h>
+#endif
+
 // Additional includes for enhanced hostname resolution
 #if !defined(_WIN32)
 #include <resolv.h>
@@ -546,6 +550,34 @@ socket_t c64_create_udp_socket(uint32_t port, bool *port_in_use)
 }
 
 // Quick connectivity test with moderate timeout (for async retry tasks)
+// Waits for a non-blocking connect() to finish. Returns >0 when the socket is
+// writable (check SO_ERROR for the outcome), 0 on timeout and <0 on error.
+// poll() rather than select(): FD_SET on a descriptor at or above FD_SETSIZE
+// (1024 on Linux and macOS) writes past the fd_set, and a long-running OBS
+// process with many sources and plugins can hold that many descriptors.
+static int c64_wait_socket_writable(socket_t sock, int timeout_ms)
+{
+#ifdef _WIN32
+    WSAPOLLFD poll_fd = {0};
+    poll_fd.fd = sock;
+    poll_fd.events = POLLWRNORM;
+    return WSAPoll(&poll_fd, 1, timeout_ms);
+#else
+    struct pollfd poll_fd = {0};
+    poll_fd.fd = sock;
+    poll_fd.events = POLLOUT;
+    const uint64_t deadline_ns = os_gettime_ns() + (uint64_t)timeout_ms * 1000000ULL;
+    for (;;) {
+        const uint64_t now_ns = os_gettime_ns();
+        const int remaining_ms = now_ns >= deadline_ns ? 0 : (int)((deadline_ns - now_ns + 999999ULL) / 1000000ULL);
+        const int result = poll(&poll_fd, 1, remaining_ms);
+        if (result >= 0 || errno != EINTR) {
+            return result;
+        }
+    }
+#endif
+}
+
 bool c64_test_connectivity(const char *ip, uint32_t port)
 {
     if (!ip || strlen(ip) == 0) {
@@ -608,21 +640,9 @@ bool c64_test_connectivity(const char *ip, uint32_t port)
 
         // Universal moderate timeout for connectivity tests
         // 250ms: Fast enough to prevent UI blocking, long enough for most real connections
-        fd_set write_fds;
-        FD_ZERO(&write_fds);
-        FD_SET(sock, &write_fds);
+        int wait_result = c64_wait_socket_writable(sock, 250);
 
-        struct timeval timeout_quick;
-        timeout_quick.tv_sec = 0;
-        timeout_quick.tv_usec = 250000; // 250ms - balanced for all network types
-
-#ifdef _WIN32
-        int select_result = select(0, NULL, &write_fds, NULL, &timeout_quick);
-#else
-        int select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_quick);
-#endif
-
-        if (select_result <= 0) {
+        if (wait_result <= 0) {
             close(sock);
             continue;
         }
@@ -647,6 +667,102 @@ bool c64_test_connectivity(const char *ip, uint32_t port)
     }
 
     freeaddrinfo(res);
+    return ok;
+}
+
+bool c64_test_connectivity_any(const char *host, const uint32_t *ports, size_t port_count, int timeout_ms)
+{
+    if (!host || !host[0] || !ports || !port_count || port_count > 4) {
+        return false;
+    }
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET;
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(host, NULL, &hints, &res) != 0 || !res) {
+        return false;
+    }
+    socket_t socks[4];
+    size_t open_count = 0;
+    bool ok = false;
+    for (size_t i = 0; i < port_count && !ok; i++) {
+        struct sockaddr_in addr = *(const struct sockaddr_in *)res->ai_addr;
+        addr.sin_port = htons((uint16_t)ports[i]);
+        socket_t sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (sock == INVALID_SOCKET_VALUE) {
+            continue;
+        }
+#ifdef _WIN32
+        u_long non_blocking = 1;
+        ioctlsocket(sock, FIONBIO, &non_blocking);
+#else
+        fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK);
+#endif
+        if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+            ok = true;
+        }
+        socks[open_count++] = sock;
+    }
+    freeaddrinfo(res);
+
+    // All connects run concurrently; the first one to complete decides.
+    const uint64_t deadline_ns = os_gettime_ns() + (uint64_t)timeout_ms * 1000000ULL;
+    bool pending[4] = {true, true, true, true};
+    while (!ok) {
+        const uint64_t now_ns = os_gettime_ns();
+        if (now_ns >= deadline_ns) {
+            break;
+        }
+        const int remaining_ms = (int)((deadline_ns - now_ns + 999999ULL) / 1000000ULL);
+#ifdef _WIN32
+        WSAPOLLFD fds[4] = {0};
+#else
+        struct pollfd fds[4] = {0};
+#endif
+        size_t watched = 0;
+        size_t map[4];
+        for (size_t i = 0; i < open_count; i++) {
+            if (!pending[i]) {
+                continue;
+            }
+            fds[watched].fd = socks[i];
+#ifdef _WIN32
+            fds[watched].events = POLLWRNORM;
+#else
+            fds[watched].events = POLLOUT;
+#endif
+            map[watched++] = i;
+        }
+        if (!watched) {
+            break;
+        }
+#ifdef _WIN32
+        const int ready = WSAPoll(fds, (ULONG)watched, remaining_ms);
+#else
+        const int ready = poll(fds, (nfds_t)watched, remaining_ms);
+        if (ready < 0 && errno == EINTR) {
+            continue;
+        }
+#endif
+        if (ready <= 0) {
+            break;
+        }
+        for (size_t w = 0; w < watched; w++) {
+            if (!fds[w].revents) {
+                continue;
+            }
+            int sock_error = 0;
+            socklen_t len = sizeof(sock_error);
+            if (getsockopt(socks[map[w]], SOL_SOCKET, SO_ERROR, (char *)&sock_error, &len) == 0 && sock_error == 0) {
+                ok = true;
+            }
+            pending[map[w]] = false;
+        }
+    }
+    for (size_t i = 0; i < open_count; i++) {
+        close(socks[i]);
+    }
     return ok;
 }
 
@@ -678,6 +794,11 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
         if (sock == INVALID_SOCKET_VALUE) {
             continue;
         }
+#ifdef SO_NOSIGPIPE
+        // macOS: no MSG_NOSIGNAL; suppress SIGPIPE for this socket instead.
+        const int no_sigpipe = 1;
+        setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
+#endif
 
         // Set socket to non-blocking for timeout control
 #ifdef _WIN32
@@ -721,48 +842,24 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
         }
 
         // Two-stage timeout: fast for local networks, fallback for internet connections
-        fd_set write_fds;
-        FD_ZERO(&write_fds);
-        FD_SET(sock, &write_fds);
-
         // First try: 100ms timeout for local network responsiveness
-        struct timeval timeout_fast;
-        timeout_fast.tv_sec = 0;
-        timeout_fast.tv_usec = 100000; // 100 milliseconds
+        int wait_result = c64_wait_socket_writable(sock, 100);
 
-#ifdef _WIN32
-        int select_result = select(0, NULL, &write_fds, NULL, &timeout_fast);
-#else
-        int select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_fast);
-#endif
-
-        if (select_result == 0) {
+        if (wait_result == 0) {
             // Fast timeout - try longer timeout for internet connections
             C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Fast connection attempt to %s:%u timed out, trying slower timeout...",
                           ip, port);
 
-            // Reset the fd_set for second attempt
-            FD_ZERO(&write_fds);
-            FD_SET(sock, &write_fds);
-
             // Second try: 1.5 second timeout for internet connections
-            struct timeval timeout_slow;
-            timeout_slow.tv_sec = 1;       // 1 second
-            timeout_slow.tv_usec = 500000; // + 500 milliseconds = 1.5s total
+            wait_result = c64_wait_socket_writable(sock, 1500);
 
-#ifdef _WIN32
-            select_result = select(0, NULL, &write_fds, NULL, &timeout_slow);
-#else
-            select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_slow);
-#endif
-
-            if (select_result == 0) {
+            if (wait_result == 0) {
                 close(sock);
                 continue;
             }
         }
 
-        if (select_result < 0) {
+        if (wait_result < 0) {
             close(sock);
             continue;
         }

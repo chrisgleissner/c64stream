@@ -41,6 +41,9 @@ bool c64_stream_control_to(struct c64_source *context, const char *host, uint32_
     }
     const bool try_rest = transport != C64_STREAM_TRANSPORT_LEGACY && context->rest_client &&
                           (transport == C64_STREAM_TRANSPORT_REST || now >= context->stream_rest_demoted_until_ns);
+    // A REST request that went unanswered is a transient stall, not a device
+    // without REST: it must not disable runtime palettes for later starts.
+    bool rest_stalled = false;
     if (try_rest) {
         c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
         long status = 0;
@@ -63,13 +66,23 @@ bool c64_stream_control_to(struct c64_source *context, const char *host, uint32_
                          enable ? "started" : "stopped");
             return true;
         }
-        if (transport == C64_STREAM_TRANSPORT_REST || !c64_stream_control_should_fallback(outcome)) {
+        if (transport == C64_STREAM_TRANSPORT_REST) {
             return false;
         }
-        context->stream_rest_demoted_until_ns = status == 404 ? UINT64_MAX : now + C64_STREAM_RETRY_NS;
+        if (c64_stream_control_should_fallback(outcome)) {
+            context->stream_rest_demoted_until_ns = status == 404 ? UINT64_MAX : now + C64_STREAM_RETRY_NS;
+        } else if (outcome != C64_REST_UNREACHABLE) {
+            return false;
+        } else {
+            rest_stalled = true;
+        }
+        // UNREACHABLE: no HTTP answer in time. The web server can stall while
+        // the control port still works, so try it for this command without
+        // demoting REST. It is no auth bypass: a 401/403 answer is FORBIDDEN,
+        // which never falls back.
     }
 
-    if (wants_palette) {
+    if (wants_palette && !rest_stalled) {
         if (os_atomic_load_long(&context->device_palette_status) != C64_DEVICE_PALETTE_UNSUPPORTED) {
             C64_LOG_WARNING("" STREAM_CONTROL_LOG_PREFIX
                             " Runtime device palettes require REST stream control; continuing without them");
