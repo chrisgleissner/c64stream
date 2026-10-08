@@ -94,14 +94,20 @@ class PacketReplayer:
                     colors.extend(int(value, 16) for value in fields[:3])
             if len(colors) != 48:
                 raise ValueError(f"Expected 16 RGB colors in {palette_path}")
-            packet_path = video_dir / '.runtime-palette.bin'
+            # Unique per replay: several mock devices may replay at once.
+            packet_path = video_dir / f'.runtime-palette-{id(self)}.bin'
             packet_path.write_bytes(bytes([1, 0, 0, 0, 239, 0, 0x80, 1, 1, 4, 1, 0] + colors))
-            timeline.append({
-                'time_us': float(self.network_simulation.get('runtime_palette_delay_ms', 100)) * 1000,
-                'type': 'video',
-                'file': str(packet_path),
-                'dest': video_dest,
-            })
+            first_us = float(self.network_simulation.get('runtime_palette_delay_ms', 100)) * 1000
+            repeat_us = float(self.network_simulation.get('runtime_palette_repeat_ms', 0) or 0) * 1000
+            end_us = start_time_us + len(video_files) * video_interval_us
+            at_us = first_us
+            while True:
+                timeline.append({'time_us': at_us, 'type': 'video', 'file': str(packet_path), 'dest': video_dest})
+                if not repeat_us:
+                    break
+                at_us += repeat_us
+                if at_us >= end_us:
+                    break
 
         # Add audio packets to timeline
         for i, audio_file in enumerate(audio_files):

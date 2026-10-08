@@ -211,6 +211,30 @@ static bool test_overwritten_file_same_size_is_picked_up(void)
     return true;
 }
 
+// A file replaced on the device under the same name and size, while the
+// setting pointed elsewhere, is shown with its new content as soon as the
+// setting selects it again (cached copy first, then verified by download).
+static bool test_reselected_file_is_verified(void)
+{
+    rig_t rig;
+    CHECK(rig_start(&rig, NULL));
+    fake_put_file(&rig.fake, "a.vpl", vpl_with_colour_14(0xFF0000));
+    fake_put_file(&rig.fake, "b.vpl", vpl_with_colour_14(0x00FF00));
+    fake_set_setting(&rig.fake, "a.vpl");
+    poll_now(&rig);
+    CHECK(shown(&rig, 14) == bgra(0xFF0000));
+    fake_set_setting(&rig.fake, "b.vpl");
+    poll_now(&rig);
+    CHECK(shown(&rig, 14) == bgra(0x00FF00));
+    fake_put_file(&rig.fake, "a.vpl", vpl_with_colour_14(0x0000FF)); // same size
+    os_sleep_ms(3100);                                               // older than the "verified moments ago" window
+    fake_set_setting(&rig.fake, "a.vpl");
+    poll_now(&rig);
+    CHECK(shown(&rig, 14) == bgra(0x0000FF));
+    rig_stop(&rig);
+    return true;
+}
+
 static bool test_stream_palette_wins(void)
 {
     rig_t rig;
@@ -338,6 +362,8 @@ static bool test_device_switch_shows_each_devices_palette(void)
     // Switch to a device not seen before: the default at once, not red.
     snprintf(rig.context->active_device_id, sizeof(rig.context->active_device_id), "device-b");
     c64_palette_follow_device_changed(rig.context, "device-b");
+    CHECK(shown(&rig, 14) == bgra(0xFF0000)); // device A's frames are still on screen
+    c64_palette_follow_cutover(rig.context);  // device B's first video packet
     CHECK(shown(&rig, 14) == c64_default_palette[14]);
     fake_set_setting(&rig.fake, ""); // device b uses the built-in palette
     poll_now(&rig);
@@ -347,6 +373,7 @@ static bool test_device_switch_shows_each_devices_palette(void)
     const long requests = FAKE_COUNT(&rig.fake, http_requests);
     snprintf(rig.context->active_device_id, sizeof(rig.context->active_device_id), "device-a");
     c64_palette_follow_device_changed(rig.context, "device-a");
+    c64_palette_follow_cutover(rig.context);
     CHECK(shown(&rig, 14) == bgra(0xFF0000));
     CHECK(FAKE_COUNT(&rig.fake, http_requests) == requests);
     rig_stop(&rig);
@@ -455,6 +482,7 @@ static bool test_stale_result_after_switch_is_dropped(void)
     snprintf(rig.context->active_device_id, sizeof(rig.context->active_device_id), "device-b");
     pthread_mutex_unlock(&rig.context->config_mutex);
     c64_palette_follow_device_changed(rig.context, "device-b");
+    c64_palette_follow_cutover(rig.context); // device B's first video packet
     FAKE_SET(&rig.fake, http_delay_ms, 0);
     FAKE_SET(&rig.fake, setting_status, 503);
 
@@ -602,6 +630,323 @@ static bool test_errors_are_reported_per_cause(void)
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// Mixed fleet: device A sends its palette in the video stream (newer
+// firmware), device B does not and is polled. Both fakes listen on loopback;
+// the target hook maps the configured host names onto them.
+
+static fake_ultimate_t *fleet_a;
+static fake_ultimate_t *fleet_b;
+
+static void fleet_hook(char *host, size_t host_size, uint16_t *rest_port, uint16_t *ftp_port)
+{
+    const fake_ultimate_t *fake = !strcmp(host, "device-a") ? fleet_a : fleet_b;
+    snprintf(host, host_size, "127.0.0.1");
+    *rest_port = fake->http_port;
+    *ftp_port = fake->ftp_port;
+}
+
+typedef struct {
+    struct c64_source *context;
+    // The simulated network: which device is selected, and which device's
+    // frames are on screen. Switches and video packets are serialised by
+    // net_mutex, so every sample sees a consistent pair.
+    pthread_mutex_t net_mutex;
+    long active;        // 0: A, 1: B
+    long frames_device; // device of the frames on screen, -1: none yet
+    volatile bool stop;
+    volatile long stream_packets;
+    uint64_t a_started_ns;      // A's stream (re)start, under net_mutex
+    uint64_t a_last_palette_ns; // A's last palette packet, under net_mutex
+    uint32_t a_palette[16];
+} fleet_t;
+
+// Both devices stream video; device A also sends its palette in the stream.
+// Every 10 ms the selected device delivers a video packet, which switches
+// the colours over exactly when its frames take over the screen (as the
+// video processing thread does). Like the firmware, A sends its first
+// palette packet about 100 ms after its stream starts, then periodically.
+static void *fleet_stream_main(void *opaque)
+{
+    fleet_t *fleet = opaque;
+    while (!os_atomic_load_bool(&fleet->stop)) {
+        pthread_mutex_lock(&fleet->net_mutex);
+        const long device = fleet->active;
+        c64_palette_follow_cutover(fleet->context);
+        pthread_mutex_lock(&fleet->context->palette_mutex);
+        fleet->frames_device = device;
+        const uint64_t now_ns = os_gettime_ns();
+        if (device == 0 && now_ns - fleet->a_started_ns >= 100000000ULL &&
+            now_ns - fleet->a_last_palette_ns >= 250000000ULL &&
+            os_atomic_load_bool(&fleet->context->follow_device_palette)) {
+            fleet->a_last_palette_ns = now_ns;
+            c64_palette_follow_note_stream_packet(fleet->context);
+            c64_palette_follow_show_stream_palette(fleet->context, fleet->a_palette);
+            os_atomic_inc_long(&fleet->stream_packets);
+        }
+        pthread_mutex_unlock(&fleet->context->palette_mutex);
+        pthread_mutex_unlock(&fleet->net_mutex);
+        os_sleep_ms(10);
+    }
+    return NULL;
+}
+
+// What c64_update does on a device change.
+static void fleet_switch(fleet_t *fleet, long device)
+{
+    struct c64_source *context = fleet->context;
+    const char *key = device == 0 ? "device-a" : "device-b";
+    pthread_mutex_lock(&fleet->net_mutex);
+    if (device == 0 && fleet->active != 0) {
+        fleet->a_started_ns = os_gettime_ns();
+        fleet->a_last_palette_ns = 0;
+    }
+    fleet->active = device;
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(context->active_device_id, sizeof(context->active_device_id), "%s", key);
+    snprintf(context->ip_address, sizeof(context->ip_address), "%s", key);
+    os_atomic_inc_long(&context->palette_device_generation);
+    pthread_mutex_unlock(&context->config_mutex);
+    c64_palette_follow_device_changed(context, key);
+    pthread_mutex_unlock(&fleet->net_mutex);
+}
+
+// The colour on screen and the device whose frames show it.
+static uint32_t fleet_shown(fleet_t *fleet, long *frames_device)
+{
+    pthread_mutex_lock(&fleet->net_mutex);
+    pthread_mutex_lock(&fleet->context->palette_mutex);
+    *frames_device = fleet->frames_device;
+    const uint32_t color = fleet->context->color_lut.palette[14];
+    pthread_mutex_unlock(&fleet->context->palette_mutex);
+    pthread_mutex_unlock(&fleet->net_mutex);
+    return color;
+}
+
+static bool memory_is_clean(struct c64_source *context, uint32_t a_color, uint32_t b_color)
+{
+    bool clean = true;
+    pthread_mutex_lock(&context->palette_mutex);
+    for (size_t i = 0; i < context->palette_memory_count; i++) {
+        const uint32_t c = context->palette_memory[i].colors[14];
+        if (!strcmp(context->palette_memory[i].device_key, "device-a")) {
+            clean &= c != b_color;
+        } else if (!strcmp(context->palette_memory[i].device_key, "device-b")) {
+            clean &= c != a_color;
+        }
+    }
+    pthread_mutex_unlock(&context->palette_mutex);
+    return clean;
+}
+
+typedef struct {
+    rig_t a;
+    fake_ultimate_t b;
+    fleet_t fleet;
+    pthread_t stream;
+} fleet_rig_t;
+
+static void fleet_start(fleet_rig_t *rig)
+{
+    CHECK(rig_start(&rig->a, NULL));
+    // A: setting empty (built-in), but the stream reports red: a palette loaded
+    // from the file browser, which only the stream can reveal.
+    memset(&rig->b, 0, sizeof(rig->b));
+    rig->b.has_setting = true;
+    rig->b.ftp_enabled = true;
+    CHECK(fake_start(&rig->b));
+    fake_put_file(&rig->b, "green.vpl", vpl_with_colour_14(0x00FF00));
+    fake_set_setting(&rig->b, "green.vpl");
+    fleet_a = &rig->a.fake;
+    fleet_b = &rig->b;
+    c64_palette_follow_set_target_hook_for_test(fleet_hook);
+
+    fleet_t *fleet = &rig->fleet;
+    memset(fleet, 0, sizeof(*fleet));
+    pthread_mutex_init(&fleet->net_mutex, NULL);
+    fleet->frames_device = -1;
+    fleet->context = rig->a.context;
+    memcpy(fleet->a_palette, c64_default_palette, sizeof(fleet->a_palette));
+    fleet->a_palette[14] = bgra(0xFF0000);
+    rig->a.context->palette_poll_interval_ms = 250;
+    fleet->active = 1;
+    fleet_switch(fleet, 0);
+    c64_palette_follow_start(rig->a.context);
+    CHECK(pthread_create(&rig->stream, NULL, fleet_stream_main, fleet) == 0);
+}
+
+static void fleet_stop(fleet_rig_t *rig)
+{
+    os_atomic_set_bool(&rig->fleet.stop, true);
+    pthread_join(rig->stream, NULL);
+    c64_palette_follow_set_target_hook_for_test(NULL);
+    fake_stop(&rig->b);
+    rig_stop(&rig->a);
+    pthread_mutex_destroy(&rig->fleet.net_mutex);
+}
+
+// Waits until the screen shows want for the selected device.
+static bool fleet_settles(fleet_t *fleet, uint32_t want, uint64_t timeout_ms)
+{
+    const uint64_t deadline = os_gettime_ns() + timeout_ms * 1000000ULL;
+    while (os_gettime_ns() < deadline) {
+        long frames_device;
+        if (fleet_shown(fleet, &frames_device) == want) {
+            return true;
+        }
+        os_sleep_ms(2);
+    }
+    return false;
+}
+
+// Once both devices have been seen, a switch shows the target's colours at
+// once (from memory) and they stay: no flash of the default palette, of the
+// device setting of a streaming device, or of the other device's colours.
+static bool test_switch_between_stream_and_polled_devices(void)
+{
+    fleet_rig_t rig;
+    fleet_start(&rig);
+    fleet_t *fleet = &rig.fleet;
+    const uint32_t red = bgra(0xFF0000);
+    const uint32_t green = bgra(0x00FF00);
+    CHECK(fleet_settles(fleet, red, 2000));
+    fleet_switch(fleet, 1);
+    CHECK(fleet_settles(fleet, green, 2000));
+
+    for (int round = 0; round < 6; round++) {
+        const long device = round % 2 == 0 ? 0 : 1;
+        const uint32_t want = device == 0 ? red : green;
+        fleet_switch(fleet, device);
+        // Watch for 600 ms: longer than two checks and the stream start.
+        const uint64_t until = os_gettime_ns() + 600000000ULL;
+        while (os_gettime_ns() < until) {
+            long frames_device;
+            const uint32_t color = fleet_shown(fleet, &frames_device);
+            const uint32_t frames_want = frames_device == 0 ? red : green;
+            if (color != frames_want) {
+                fprintf(stderr, "round %d: frames of device %ld shown in %08X, want %08X\n", round, frames_device,
+                        color, frames_want);
+                CHECK(false);
+            }
+            os_sleep_ms(1);
+        }
+        CHECK(fleet_shown(fleet, &(long){0}) == want);
+        CHECK(source(&rig.a) == (device == 0 ? C64_PALETTE_SOURCE_STREAM : C64_PALETTE_SOURCE_DEVICE_FILE));
+    }
+    // The streaming device's setting was never applied over its stream palette.
+    CHECK(memory_is_clean(fleet->context, red, green));
+    fleet_stop(&rig);
+    return true;
+}
+
+// Hundreds of switches with random dwell from 0 to 40 ms (and a few longer
+// stays so checks complete): at no stable moment does the screen show the
+// other device's colours, the palette memory never files one device's
+// colours under the other, and after the last switch the right palette and
+// status follow within a second.
+static bool test_chaos_switching(void)
+{
+    fleet_rig_t rig;
+    fleet_start(&rig);
+    fleet_t *fleet = &rig.fleet;
+    const uint32_t red = bgra(0xFF0000);
+    const uint32_t green = bgra(0x00FF00);
+    uint32_t seed = 64;
+    long violations = 0;
+    long wrong_device = 0;
+    long samples = 0;
+    const uint64_t start = os_gettime_ns();
+    const int switches = 600;
+    for (int i = 0; i < switches; i++) {
+        seed = seed * 1103515245u + 12345u;
+        const long device = (long)((seed >> 16) & 1);
+        fleet_switch(fleet, device);
+        seed = seed * 1103515245u + 12345u;
+        unsigned dwell_ms = (seed >> 16) % 41;
+        if (i % 97 == 0) {
+            dwell_ms = 700; // long enough for a check of the polled device
+        }
+        const uint64_t until = os_gettime_ns() + dwell_ms * 1000000ULL;
+        do {
+            long frames_device;
+            const uint32_t color = fleet_shown(fleet, &frames_device);
+            if (frames_device >= 0) {
+                samples++;
+                // Frames are always shown in their own device's colours
+                // (default only before that device's palette is known).
+                const uint32_t own = frames_device == 0 ? red : green;
+                if (color != own && color != c64_default_palette[14]) {
+                    if (violations++ < 5) {
+                        fprintf(stderr, "switch %d: frames of device %ld shown in %08X\n", i, frames_device, color);
+                    }
+                }
+                if (color == (frames_device == 0 ? green : red)) {
+                    wrong_device++;
+                }
+            }
+            os_sleep_ms(1);
+        } while (os_gettime_ns() < until);
+        CHECK(memory_is_clean(fleet->context, red, green));
+    }
+    const uint64_t elapsed_ms = (os_gettime_ns() - start) / 1000000ULL;
+    printf("  %d switches in %llu ms, %ld stable samples, %ld stream packets, %ld setting requests, %ld downloads\n",
+           switches, (unsigned long long)elapsed_ms, samples, os_atomic_load_long(&fleet->stream_packets),
+           FAKE_COUNT(&rig.b, setting_requests), FAKE_COUNT(&rig.b, ftp_retrs));
+    CHECK(violations == 0);
+    CHECK(wrong_device == 0);
+    CHECK(samples > 1000);
+
+    // Both ends settle on the right palette and status.
+    fleet_switch(fleet, 1);
+    CHECK(fleet_settles(fleet, green, 1000));
+    const uint64_t status_deadline = os_gettime_ns() + 1500000000ULL;
+    while (source(&rig.a) != C64_PALETTE_SOURCE_DEVICE_FILE && os_gettime_ns() < status_deadline) {
+        os_sleep_ms(5);
+    }
+    CHECK(source(&rig.a) == C64_PALETTE_SOURCE_DEVICE_FILE);
+    fleet_switch(fleet, 0);
+    CHECK(fleet_settles(fleet, red, 1000));
+    const uint64_t stream_deadline = os_gettime_ns() + 1500000000ULL;
+    while (source(&rig.a) != C64_PALETTE_SOURCE_STREAM && os_gettime_ns() < stream_deadline) {
+        os_sleep_ms(5);
+    }
+    CHECK(source(&rig.a) == C64_PALETTE_SOURCE_STREAM);
+    // Rapid switching does not mean one download per switch: after the first
+    // download the file is fetched again only by the content recheck (every
+    // 10th check) and when it is selected again after more than 3 s.
+    const long downloads = FAKE_COUNT(&rig.b, ftp_retrs);
+    const long allowed = 2 + FAKE_COUNT(&rig.b, setting_requests) / 10 + (long)(elapsed_ms / 3000);
+    printf("  %ld downloads of the polled device's file, at most %ld allowed\n", downloads, allowed);
+    CHECK(downloads <= allowed);
+    CHECK(downloads < switches / 10);
+    fleet_stop(&rig);
+    return true;
+}
+
+// Follow device toggled on and off while switching: the selected palette
+// comes back when off, the device palette when on, nothing hangs.
+static bool test_toggle_follow_while_switching(void)
+{
+    fleet_rig_t rig;
+    fleet_start(&rig);
+    fleet_t *fleet = &rig.fleet;
+    for (int i = 0; i < 200; i++) {
+        fleet_switch(fleet, i % 3 == 0 ? 0 : 1);
+        os_atomic_set_bool(&fleet->context->follow_device_palette, i % 2 == 0);
+        c64_palette_follow_wake(fleet->context);
+        os_sleep_ms(i % 7);
+    }
+    os_atomic_set_bool(&fleet->context->follow_device_palette, true);
+    c64_palette_follow_wake(fleet->context);
+    fleet_switch(fleet, 1);
+    CHECK(fleet_settles(fleet, bgra(0x00FF00), 1500));
+    fleet_switch(fleet, 0);
+    CHECK(fleet_settles(fleet, bgra(0xFF0000), 1500));
+    CHECK(memory_is_clean(fleet->context, bgra(0xFF0000), bgra(0x00FF00)));
+    fleet_stop(&rig);
+    return true;
+}
+
 // Removes the test's cache folders (one level of rig folders with files).
 static void remove_cache_root(void)
 {
@@ -656,6 +1001,7 @@ int main(void)
     } tests[] = {
         {"builtin_then_file_then_change", test_builtin_then_file_then_change},
         {"overwritten_file_same_size_is_picked_up", test_overwritten_file_same_size_is_picked_up},
+        {"reselected_file_is_verified", test_reselected_file_is_verified},
         {"stream_palette_wins", test_stream_palette_wins},
         {"force_legacy_uses_default", test_force_legacy_uses_default},
         {"stale_result_after_switch_is_dropped", test_stale_result_after_switch_is_dropped},
@@ -663,6 +1009,9 @@ int main(void)
         {"stream_resumes_after_polled_palette", test_stream_resumes_after_polled_palette},
         {"wake_is_prompt", test_wake_is_prompt},
         {"errors_are_reported_per_cause", test_errors_are_reported_per_cause},
+        {"switch_between_stream_and_polled_devices", test_switch_between_stream_and_polled_devices},
+        {"chaos_switching", test_chaos_switching},
+        {"toggle_follow_while_switching", test_toggle_follow_while_switching},
         {"password", test_password},
         {"errors_keep_last_colours", test_errors_keep_last_colours},
         {"device_switch_shows_each_devices_palette", test_device_switch_shows_each_devices_palette},

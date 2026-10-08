@@ -54,6 +54,7 @@ SCENE_NAME = "HIL"
 # colours need to be told apart, so a nearest-colour match is sufficient.
 VIC_RGB = {
     2: (0x88, 0x39, 0x32),  # red
+    3: (0x67, 0xB6, 0xBD),  # cyan
     5: (0x55, 0xA0, 0x49),  # green
     7: (0xBF, 0xCE, 0x72),  # yellow
     0: (0x00, 0x00, 0x00),  # black
@@ -1087,12 +1088,15 @@ def scenario_visual(hil: Hil) -> None:
     hil.obs.remove_source()
 
 
-def _vpl(light_blue: tuple[int, int, int]) -> str:
-    """A full VPL whose colour 14 (the READY screen border) is light_blue."""
+def _vpl(light_blue: tuple[int, int, int], blue: tuple[int, int, int] | None = None) -> str:
+    """A full VPL whose colour 14 (the READY screen border) is light_blue and,
+    if given, whose colour 6 is blue."""
     colors = [(0, 0, 0), (255, 255, 255), (136, 57, 50), (103, 182, 189), (139, 63, 150), (85, 160, 73),
               (64, 49, 141), (191, 206, 114), (139, 84, 41), (87, 66, 0), (184, 105, 98), (80, 80, 80),
               (120, 120, 120), (148, 224, 137), (120, 105, 196), (159, 159, 159)]
     colors[14] = light_blue
+    if blue is not None:
+        colors[6] = blue
     return "# c64stream HIL test palette\n" + "".join("%02X %02X %02X\n" % c for c in colors)
 
 
@@ -1192,8 +1196,167 @@ def scenario_palette_follow(hil: Hil) -> None:
                 device.set_border(device.border)
 
 
+def scenario_palette_mixed(hil: Hil) -> None:
+    """Follow device on a mixed fleet: the U64 runs firmware that sends its
+    palette in the video stream, the C64U does not and is polled. The U64's
+    palette must come from its stream (setting changes appear without a
+    poll), the C64U's from its setting, and switching between them, also
+    rapidly, must always show each device with its own palette."""
+    u64, c64u = hil.device("U64"), hil.device("C64U")
+    names = ("c64stream-test-a.vpl", "c64stream-test-b.vpl")
+    original = {d.label: d.palette_setting() for d in (u64, c64u)}
+    had_data_dir = {d.label: d.has_flash_data_dir() for d in (u64, c64u)}
+    for device in (u64, c64u):
+        device.set_border(14)
+        device.upload_palette(names[0], _vpl((255, 0, 0)))
+        device.upload_palette(names[1], _vpl((0, 255, 0)))
+    u64.set_palette_setting(names[0])   # red, reported in the U64's stream
+    c64u.set_palette_setting(names[1])  # green, read from the C64U's setting
+    # The U64 resolves the stream destination through its ARP table; make
+    # sure this machine is in it (a freshly loaded image may not have it).
+    subprocess.run(["ping", "-c", "2", "-W", "1", u64.host], capture_output=True)
+    mark = [0]
+
+    def log_since(text: str) -> bool:
+        return text in hil.obs.log_text()[mark[0]:]
+
+    try:
+        hil.obs.create_source(base_settings(c64_device=u64.device_id, palette="__device__",
+                                            stream_control_transport=0, device_palette_poll_ms=1000))
+        ok, seconds, detail = hil.wait_for_border(2, 20)
+        hil.record("palette_mixed_u64_stream", ok and log_since("source: video stream"),
+                   f"U64 palette from its stream ({detail})")
+
+        # A setting change on the stream device shows up through the stream.
+        mark[0] = len(hil.obs.log_text())
+        start = time.time()
+        u64.set_palette_setting(names[1])
+        ok, seconds, detail = hil.wait_for_border(5, 10)
+        hil.record("palette_mixed_u64_change_via_stream", ok and not log_since("PALETTE: downloaded"),
+                   f"U64 setting change rendered after {seconds:.2f}s without a download ({detail})")
+        u64.set_palette_setting(names[0])
+        hil.wait_for_border(2, 10)
+
+        hil.obs.update({"c64_device": c64u.device_id})
+        ok, seconds, detail = hil.wait_for_border(5, 15, forbid=2)
+        hil.record("palette_mixed_c64u_polled", ok, f"C64U palette from its setting ({detail})")
+
+        # Switch back and forth with a dwell long enough to see each device.
+        failures = []
+        worst = 0.0
+        for i in range(20):
+            target, colour, other = ((u64, 2, 5), (c64u, 5, 2))[i % 2]
+            hil.obs.update({"c64_device": target.device_id})
+            ok, seconds, detail = hil.wait_for_border(colour, 10, forbid=other)
+            worst = max(worst, seconds)
+            if not ok:
+                failures.append(f"{i}:{target.label}: {detail}")
+        hil.record("palette_mixed_switching", not failures,
+                   f"20 switches, each device with its own palette, slowest {worst:.2f}s" if not failures
+                   else str(failures[:4]))
+
+        # Crazy switching: 60 switches 50-300 ms apart, then the last choice
+        # must settle on its own palette.
+        rng = __import__("random").Random(64)
+        for i in range(60):
+            hil.obs.update({"c64_device": (u64, c64u)[rng.randrange(2)].device_id})
+            time.sleep(rng.uniform(0.05, 0.3))
+        for target, colour, other in ((c64u, 5, 2), (u64, 2, 5)):
+            hil.obs.update({"c64_device": target.device_id})
+            ok, seconds, detail = hil.wait_for_border(colour, 15, forbid=other)
+            hil.record(f"palette_mixed_after_chaos_{target.label.lower()}", ok,
+                       f"{target.label} with its own palette after 60 rapid switches ({detail})")
+
+        # Cut-over on screen: the U64 border is colour 14 and the C64U's is
+        # colour 6, and the two palettes differ in both. A frame shown in the
+        # other device's palette has a colour that cannot occur otherwise:
+        # U64 frame in C64U colours -> green (5), C64U frame in U64 colours
+        # -> yellow (7).
+        for device in (u64, c64u):
+            device.upload_palette(names[0], _vpl((255, 0, 0), (255, 255, 0)))  # U64: 14 red, 6 yellow
+            device.upload_palette(names[1], _vpl((0, 255, 0), (0, 255, 255)))  # C64U: 14 green, 6 cyan
+        u64.set_palette_setting(names[1])
+        u64.set_palette_setting(names[0])  # the stream reports the re-uploaded file
+        c64u.set_palette_setting(names[0])
+        c64u.set_palette_setting(names[1])
+        c64u.set_border(6)
+        hil.obs.update({"c64_device": c64u.device_id})
+        hil.wait_for_border(3, 15)
+        hil.obs.update({"c64_device": u64.device_id})
+        hil.wait_for_border(2, 15)
+        seen: dict[int | None, int] = {}
+        wrong = 0
+        for i in range(30):
+            target = (c64u, u64)[i % 2]
+            hil.obs.update({"c64_device": target.device_id})
+            until = time.time() + rng.uniform(0.3, 1.2)
+            runs: list[list] = []
+            while time.time() < until:
+                colour = hil.obs.border_colour()
+                seen[colour] = seen.get(colour, 0) + 1
+                wrong += colour in (5, 7)
+                if runs and runs[-1][0] == colour:
+                    runs[-1][1] += 1
+                else:
+                    runs.append([colour, 1])
+            log(f"  cut-over {i} -> {target.label}: " + " ".join(f"{c}x{n}" for c, n in runs))
+        hil.record("palette_mixed_cutover_on_screen", wrong == 0 and seen.get(2, 0) > 0 and seen.get(3, 0) > 0,
+                   f"30 switches, screenshots by border colour {dict(sorted(seen.items(), key=str))}; "
+                   f"{wrong} showed a device in the other's palette")
+        c64u.set_border(14)
+        for device in (u64, c64u):
+            device.upload_palette(names[0], _vpl((255, 0, 0)))
+            device.upload_palette(names[1], _vpl((0, 255, 0)))
+
+        # C64Script switches between a fixed palette and Follow device while
+        # the source switches devices underneath it; it must finish, and the
+        # device palette must be back afterwards.
+        script = hil.workdir / "palette_follow_toggle.c64script"
+        script.write_text('LOG "palette toggle start"\n'
+                          'FOR I = 1 TO 25\n'
+                          '    PALETTE "vibrant"\n'
+                          '    WAIT 60ms\n'
+                          '    PALETTE "device"\n'
+                          '    WAIT 90ms\n'
+                          'NEXT\n'
+                          'LOG "palette toggle done"\n')
+        mark[0] = len(hil.obs.log_text())
+        hil.obs.update({"script_file": str(script)})
+        deadline = time.time() + 5  # OBS applies source updates asynchronously
+        while time.time() < deadline and hil.obs.settings().get("script_file") != str(script):
+            time.sleep(0.1)
+        time.sleep(0.5)
+        hil.obs.ws.call("PressInputPropertiesButton", {"inputName": hil.obs.source_name,
+                                                       "propertyName": "script_start_stop"})
+        for i in range(12):
+            hil.obs.update({"c64_device": (u64, c64u)[i % 2].device_id})
+            time.sleep(0.3)
+        deadline = time.time() + 20
+        while time.time() < deadline and not log_since("Script completed successfully"):
+            time.sleep(0.2)
+        completed = log_since("Script completed successfully")
+        hil.obs.update({"c64_device": c64u.device_id})
+        ok_c64u, _, detail_c64u = hil.wait_for_border(5, 15, forbid=2)
+        hil.obs.update({"c64_device": u64.device_id})
+        ok_u64, _, detail_u64 = hil.wait_for_border(2, 15, forbid=5)
+        hil.record("palette_mixed_script_toggle", completed and ok_c64u and ok_u64,
+                   f"script {'completed' if completed else 'did not complete'}; C64U {detail_c64u}; U64 {detail_u64}")
+    finally:
+        hil.obs.remove_source()
+        for device in (u64, c64u):
+            with contextlib.suppress(Exception):
+                device.set_palette_setting(original[device.label])
+            for name in names:
+                device.delete_palette(name)
+            if not had_data_dir[device.label]:
+                device.remove_flash_data_dir()
+            with contextlib.suppress(Exception):
+                device.set_border(device.border)
+
+
 SCENARIOS = {
     "palette": scenario_palette_follow,
+    "palette_mixed": scenario_palette_mixed,
     "visual": scenario_visual,
     "soak": scenario_soak,
     "lossy": scenario_lossy_switch,

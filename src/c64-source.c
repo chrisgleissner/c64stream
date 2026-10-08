@@ -327,10 +327,18 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
     } else if (follow_device && context->polled_palette_valid) {
         memcpy(colors, context->polled_palette, sizeof(colors));
     }
+    if (!follow_device) {
+        // A device switch waiting for its cut-over must not replace the
+        // palette selected now.
+        os_atomic_set_bool(&context->palette_cutover_pending, false);
+    }
     if (!context->palette_initialized) {
         c64_color_lut_init(&context->color_lut, colors);
         context->palette_initialized = true;
-    } else {
+    } else if (!follow_device || follow_changed) {
+        // While Follow device stays on, the follow module owns the colours:
+        // a settings update (a device switch among them) must not show the
+        // new device's colours on the previous device's frames.
         c64_color_lut_update(&context->color_lut, colors);
     }
     strncpy(context->palette_id, palette_id, sizeof(context->palette_id) - 1);
@@ -1179,6 +1187,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->ip_address[sizeof(context->ip_address) - 1] = '\0';
     c64_set_expected_peer_ip(context, context->ip_address);
     c64_set_expected_peer_alias(context, obs_data_get_string(settings, "c64_device_peer_host"));
+    snprintf(context->palette_device_key, sizeof(context->palette_device_key), "%s",
+             context->active_device_id[0] ? context->active_device_id : context->ip_address);
 
     context->auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
     const bool has_saved_video_port = obs_data_has_user_value(settings, "video_port");
@@ -1432,6 +1442,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         context->audio_fifo.capacity = audio_fifo_capacity;
         c64_network_fifo_reset(&context->video_fifo);
         c64_network_fifo_reset(&context->audio_fifo);
+        // A packet tagged for the palette cut-over may have been discarded with
+        // the queue: let the next one from the selected device carry it.
+        os_atomic_set_bool(&context->palette_cutover_marked, false);
     }
 
     context->last_stats_log_time = os_gettime_ns();
@@ -2146,7 +2159,6 @@ void c64_update(void *data, obs_data_t *settings)
         }
     }
 
-    char palette_device_key[sizeof(context->active_device_id)] = {0};
     // Update configuration - hostname and IP resolution (thread-safe)
     pthread_mutex_lock(&context->config_mutex);
     strncpy(context->hostname, new_host, sizeof(context->hostname) - 1);
@@ -2196,25 +2208,30 @@ void c64_update(void *data, obs_data_t *settings)
         context->handover_peer_ip_set = true;
     }
     if (host_changed) {
+        // The new device's colours wait for its first packet (the palette
+        // cut-over). Announced once the new expected peer is in place, so the
+        // receive thread can only tag a packet from the new device. Takes
+        // only palette_mutex. Without a handover nothing else drops what the
+        // previous device left queued, so the cut-over does.
+        char palette_device_key[sizeof(context->active_device_id)];
+        snprintf(palette_device_key, sizeof(palette_device_key), "%s",
+                 context->active_device_id[0] ? context->active_device_id : context->ip_address);
+        os_atomic_inc_long(&context->palette_device_generation);
+        os_atomic_set_bool(&context->palette_cutover_flush, !context->handover_peer_ip_set);
+        c64_palette_follow_device_changed(context, palette_device_key);
+    }
+    if (host_changed) {
         // Every change of device is measured, including one away from a
         // device that was not streaming (then the pause is the time since
         // that device's last frame, and only the first-frame time says how
         // fast the new device came up).
         snprintf(context->switch_from_host, sizeof(context->switch_from_host), "%s", old_ip_address);
         context->switch_requested_ns = os_gettime_ns();
-        // The previous device's palette does not apply to the new one; told
-        // to the palette worker once config_mutex is released.
-        snprintf(palette_device_key, sizeof(palette_device_key), "%s",
-                 context->active_device_id[0] ? context->active_device_id : context->ip_address);
-        os_atomic_inc_long(&context->palette_device_generation);
         context->switch_gap_max_ns = 0;
         context->switch_receivers_restarted = false;
         context->switch_gap_measuring = true;
     }
     pthread_mutex_unlock(&context->config_mutex);
-    if (host_changed) {
-        c64_palette_follow_device_changed(context, palette_device_key);
-    }
 
     const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;
     if ((host_changed || password_changed) && !needs_device_transition) {
@@ -2626,6 +2643,9 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     // Reset Stage-1 UDP network FIFOs for a clean start/reconnect.
     c64_network_fifo_reset(&context->video_fifo);
     c64_network_fifo_reset(&context->audio_fifo);
+    // A packet tagged for the palette cut-over may have been discarded with
+    // the queue: let the next one from the selected device carry it.
+    os_atomic_set_bool(&context->palette_cutover_marked, false);
 
     if (pthread_create(&context->video_thread, NULL, c64_video_thread_func, context) != 0) {
         C64_LOG_ERROR("Failed to create video receiver thread");
@@ -2753,6 +2773,9 @@ static void c64_stop_streaming_local(struct c64_source *context)
     // Clear any queued UDP packets so the next start begins from an empty ingest state.
     c64_network_fifo_reset(&context->video_fifo);
     c64_network_fifo_reset(&context->audio_fifo);
+    // A packet tagged for the palette cut-over may have been discarded with
+    // the queue: let the next one from the selected device carry it.
+    os_atomic_set_bool(&context->palette_cutover_marked, false);
 
     // Clear frame buffer (async video will stop automatically)
     if (context->frame_buffer) {

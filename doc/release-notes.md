@@ -43,6 +43,9 @@
 - **Palette source** shows where the colours come from (device palette, built-in palette, or
   video stream) and names the problem if the palette cannot be read, for example a rejected
   network password or FTP being disabled on the device.
+- Switching between devices shows each device's frames in its own colours: the palette
+  changes exactly with the new device's first frame, the last palette of each device is
+  remembered, and rapid switching does not flood the devices with requests.
 - Follow device needs Stream Control Transport *Auto* or *Force REST*.
 - Experimental: firmware that reports its palette in the video stream is supported too. The
   reported palette is then used directly.

@@ -1,0 +1,59 @@
+REM Follow device on a mixed fleet (CI). See the scenario
+REM ntsc_palette_mixed_switch and assertions/palette_device_pairs.py.
+REM Device A reports its palette in the video stream, device B is polled.
+
+PRINT "=== Palette mixed switch started ==="
+WAIT 3000 ms
+
+REM 1. Back and forth with time to see each device.
+COUNTER = 0
+LABEL live_loop
+    IF COUNTER >= 8 THEN
+        GOTO live_done
+    ENDIF
+    SWITCH_DEVICE "e2e-pal-b"
+    WAIT 1500 ms
+    SWITCH_DEVICE "e2e-pal-a"
+    WAIT 1500 ms
+    COUNTER = COUNTER + 1
+    GOTO live_loop
+LABEL live_done
+PRINT "Live switches done"
+
+REM 2. Faster than a start completes; the last choice must win.
+COUNTER = 0
+LABEL rapid_loop
+    IF COUNTER >= 10 THEN
+        GOTO rapid_done
+    ENDIF
+    SWITCH_DEVICE "e2e-pal-b"
+    WAIT 70 ms
+    SWITCH_DEVICE "e2e-pal-a"
+    WAIT 70 ms
+    COUNTER = COUNTER + 1
+    GOTO rapid_loop
+LABEL rapid_done
+SWITCH_DEVICE "e2e-pal-b"
+WAIT 2000 ms
+PRINT "Rapid switches done"
+
+REM 3. The script leaves Follow device and comes back while switching.
+COUNTER = 0
+LABEL toggle_loop
+    IF COUNTER >= 4 THEN
+        GOTO toggle_done
+    ENDIF
+    PALETTE "Default"
+    WAIT 300 ms
+    PALETTE "device"
+    WAIT 700 ms
+    SWITCH_DEVICE "e2e-pal-a"
+    WAIT 1200 ms
+    SWITCH_DEVICE "e2e-pal-b"
+    WAIT 1200 ms
+    COUNTER = COUNTER + 1
+    GOTO toggle_loop
+LABEL toggle_done
+SWITCH_DEVICE "e2e-pal-a"
+WAIT 2000 ms
+PRINT "=== Palette mixed switch done ==="

@@ -1,0 +1,64 @@
+name: NTSC Follow device palette on a mixed fleet (Mock)
+format: NTSC
+preset: Default
+# Runs on every CI build. Device A reports its palette (Night) in the video
+# stream, like newer firmware; device B does not (it rejects palette=1) and is
+# polled: its Palette Definition setting names monochrome.vpl, served over
+# FTP. The script switches between them slowly, rapidly, and while leaving
+# and re-entering Follow device. Every recorded frame must be in its own
+# device's palette (or the default one).
+packet_source: mock
+mock_rest_enabled: true
+mock_devices:
+  - id: e2e-pal-a
+    unique_id: e2e-pal-a
+    hostname: E2E Palette A
+    hosts: [127.0.0.2]
+    stream_hosts: [127.0.0.2]
+    pattern: solid
+    frames: 300
+    stream_palette: night
+    palette_setting: ""
+  - id: e2e-pal-b
+    unique_id: e2e-pal-b
+    hostname: E2E Palette B
+    hosts: [127.0.0.4]
+    stream_hosts: [127.0.0.4]
+    pattern: dots
+    frames: 300
+    reject_runtime_palette: true
+    palette_setting: monochrome.vpl
+    palette_files: [monochrome]
+device_registry:
+  - id: e2e-pal-a
+    name: E2E Palette A
+    host: 127.0.0.2
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6400
+  - id: e2e-pal-b
+    name: E2E Palette B
+    host: 127.0.0.4
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6400
+overrides:
+  c64_host: 127.0.0.2
+  c64_device: e2e-pal-a
+  video_port: 21000
+  audio_port: 21001
+  control_port: 6400
+  stream_control_transport: 0
+  palette: __device__
+  device_palette_poll_ms: 250
+  palette_device_a: night
+  palette_device_b: monochrome
+  script_file: "${repo_root}/tests/e2e/scripts/palette_mixed_switch.c64script"
+  script_auto_start: true
+  record_csv: false
+  record_frames: false
+  debug_logging: true
+script_completion_timeout: 120
+assertions:
+  - palette_device_pairs
+  - discovered_stream_patterns

@@ -1029,6 +1029,7 @@ void *c64_video_thread_func(void *data)
 
             // Ingest ownership filter: drop packets from a sender that is not
             // the expected peer (e.g. an abandoned device still streaming).
+            const struct sockaddr_in *packet_sender = &addrs[i];
             const bool from_handover = c64_packet_from_handover(context, &addrs[i]);
             if (!c64_packet_admit(context, &addrs[i])) {
                 os_atomic_inc_long(&context->debug_packets_dropped_peer);
@@ -1104,6 +1105,7 @@ void *c64_video_thread_func(void *data)
 
         // Ingest ownership filter: drop packets from a sender that is not the
         // expected peer (e.g. an abandoned device still streaming).
+        const struct sockaddr_in *packet_sender = &sender_addr;
         const bool from_handover = received > 0 && c64_packet_from_handover(context, &sender_addr);
         if (received > 0 && !c64_packet_admit(context, &sender_addr)) {
             os_atomic_inc_long(&context->debug_packets_dropped_peer);
@@ -1143,7 +1145,7 @@ void *c64_video_thread_func(void *data)
                 if (following) {
                     c64_palette_follow_note_stream_packet(context);
                     if (c64_palette_state_accept(&context->device_palette, generation, palette)) {
-                        c64_color_lut_update(&context->color_lut, palette);
+                        c64_palette_follow_show_stream_palette(context, palette);
                         context->palette_initialized = true;
                         applied = true;
                     }
@@ -1184,8 +1186,20 @@ void *c64_video_thread_func(void *data)
             os_atomic_set_long(&context->video_bytes_received,
                                os_atomic_load_long(&context->video_bytes_received) + (long)received);
 
-            (void)c64_network_fifo_push_tagged(&context->video_fifo, packet, (uint16_t)received, packet_time,
-                                               from_handover);
+            // The first packet from the selected device after a switch carries
+            // the palette cut-over: frames before it are the previous device's.
+            bool palette_cutover = false;
+            // Checked again here: a packet admitted from the previous device
+            // just before the switch armed the cut-over must not carry it.
+            if (!from_handover && os_atomic_load_bool(&context->palette_cutover_pending) &&
+                c64_packet_from_expected_peer(context, packet_sender)) {
+                palette_cutover = !os_atomic_set_bool(&context->palette_cutover_marked, true);
+            }
+            if (!c64_network_fifo_push_tagged(&context->video_fifo, packet, (uint16_t)received, packet_time,
+                                              from_handover, palette_cutover) &&
+                palette_cutover) {
+                os_atomic_set_bool(&context->palette_cutover_marked, false); // dropped: mark the next one
+            }
 
 #ifdef __linux__
         } // End batch packet processing loop
@@ -1560,6 +1574,7 @@ static bool c64_stage2_drain_video_fifo(struct c64_source *context, uint32_t max
         const uint64_t packet_time = slot->timestamp_ns;
         const uint16_t received = slot->size;
         const bool from_handover = slot->from_handover;
+        const bool palette_cutover = slot->palette_cutover;
         memcpy(packet, slot->data, received);
         c64_network_fifo_commit_pop(&context->video_fifo);
         did_work = true;
@@ -1572,6 +1587,16 @@ static bool c64_stage2_drain_video_fifo(struct c64_source *context, uint32_t max
         }
         if (flush) {
             c64_handover_flush(context);
+        }
+        // The selected device's first packet after a switch: every frame from
+        // here on is its own, so its colours take over exactly here.
+        if (palette_cutover) {
+            // Whatever the previous device left in the reorder buffer or the
+            // frame under assembly would otherwise be shown in these colours.
+            if (!flush && os_atomic_set_bool(&context->palette_cutover_flush, false)) {
+                c64_handover_flush(context);
+            }
+            c64_palette_follow_cutover(context);
         }
 
         // Stage-2: buffering / ordering / validation / optional CSV logging.

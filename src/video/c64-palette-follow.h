@@ -39,7 +39,20 @@ const char *c64_palette_follow_error_key(c64_palette_error_t error);
  * palette_mutex held. */
 void c64_palette_follow_note_stream_packet(struct c64_source *context);
 
+/* Shows a palette taken from the stream (or keeps it for the cut-over of a
+ * pending device switch) and files it under the current device, so a switch
+ * back to that device shows it at once. Caller holds palette_mutex. */
+void c64_palette_follow_show_stream_palette(struct c64_source *context, const uint32_t colors[16]);
+/* The first video packet from the selected device after a switch: its
+ * colours replace the previous device's now. Video processing thread; takes
+ * palette_mutex only when a switch is pending. */
+void c64_palette_follow_cutover(struct c64_source *context);
+
 /* Test-only: device service ports, cache folder, and one synchronous check. */
 void c64_palette_follow_set_ports_for_test(uint16_t rest_port, uint16_t ftp_port);
 void c64_palette_follow_set_cache_dir_for_test(const char *dir);
+/* Rewrites the configured host into the address and ports of a fake device
+ * (several fakes share 127.0.0.1 on different ports). */
+typedef void (*c64_palette_follow_target_hook_t)(char *host, size_t host_size, uint16_t *rest_port, uint16_t *ftp_port);
+void c64_palette_follow_set_target_hook_for_test(c64_palette_follow_target_hook_t hook);
 void c64_palette_follow_poll_for_test(struct c64_source *context);

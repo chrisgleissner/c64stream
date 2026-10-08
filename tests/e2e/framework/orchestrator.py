@@ -125,14 +125,23 @@ class E2EOrchestrator:
         setting, its /Flash/data files (from data/palettes) and setting changes
         at given times on the replay timeline."""
         sim = self.network_simulation
-        if 'device_palette_setting' not in sim:
-            return
         palettes_dir = Path(__file__).resolve().parents[3] / 'data' / 'palettes'
+        # Topology devices may carry their own palette setting and files
+        # (device keys palette_setting and palette_files).
+        topology = {str(d["id"]): d for d in self.mock_server.devices_by_host.values()}
+        for device in topology.values():
+            if 'palette_files' in device:
+                device['palette_file_data'] = {f'{name}.vpl': (palettes_dir / f'{name}.vpl').read_bytes()
+                                               for name in device['palette_files']}
+        uses_device_palettes = any('palette_setting' in d for d in topology.values())
+        if 'device_palette_setting' not in sim and not uses_device_palettes:
+            return
         files = {f'{name}.vpl': (palettes_dir / f'{name}.vpl').read_bytes()
                  for name in sim.get('device_palette_files', [])}
         if not self.mock_server.enable_palette_files(files):
             raise RuntimeError("Failed to start the mock FTP server (port 21)")
-        self.mock_server.set_palette_setting(str(sim['device_palette_setting'] or ''))
+        if 'device_palette_setting' in sim:
+            self.mock_server.set_palette_setting(str(sim['device_palette_setting'] or ''))
         actions = []
         for change in sim.get('device_palette_setting_changes', []):
             name = str(change.get('name') or '')
@@ -353,8 +362,14 @@ class E2EOrchestrator:
             packet_dir = self.env.output_dir / f"mock-packets-{device_id}"
             generate_packets(packet_dir, num_frames=int(device.get("frames", 300)), formats=[self.format],
                              pattern=str(device.get("pattern", "diagonal")), disable_pops=True)
+            simulation = dict(self.network_simulation)
+            if device.get("stream_palette"):
+                # Firmware that reports its palette in the stream: the first
+                # palette packet shortly after the start, then every second.
+                simulation.update({"runtime_palette_vpl": device["stream_palette"],
+                                   "runtime_palette_delay_ms": 100, "runtime_palette_repeat_ms": 1000})
             replayers[device_id] = PacketReplayer(
-                self.env, self.format, self.network_simulation, packet_dir=packet_dir, lead_time_s=0.1
+                self.env, self.format, simulation, packet_dir=packet_dir, lead_time_s=0.1
             )
 
         # Like real hardware, a device streams one stream at a time. A stop

@@ -16,6 +16,15 @@
 // A stream that delivered palette packets this recently is the source of the
 // colours; polling the device setting would only add load and could disagree.
 #define C64_PALETTE_STREAM_FRESH_NS (5ULL * 1000000000ULL)
+// After a switch to a device that sent stream palettes before, how long to
+// wait for its stream palette before reading the device setting instead.
+#define C64_PALETTE_STREAM_GRACE_NS (2000ULL * 1000000ULL)
+// Checks wait until the selection has been stable this long, so switching
+// rapidly does not start requests that the next switch abandons. The new
+// device's colours come from memory and the cut-over meanwhile.
+#define C64_PALETTE_SWITCH_SETTLE_MS 150
+// Longest wait for the new device's first video packet after a switch.
+#define C64_PALETTE_CUTOVER_MAX_NS (3000ULL * 1000000ULL)
 // Longest sleep while there is nothing to do; wakes come through the event.
 #define C64_PALETTE_WORKER_IDLE_MS 1000
 // A status that flips on every check (a flaky link) refreshes the
@@ -35,6 +44,7 @@
 static uint16_t rest_port = 0; // 0: the REST host as configured (port 80)
 static uint16_t ftp_port = 21;
 static char cache_dir_override[512];
+static c64_palette_follow_target_hook_t target_hook;
 
 typedef struct {
     char name[C64_DEVICE_PALETTE_NAME_MAX];
@@ -51,6 +61,7 @@ typedef struct {
 typedef struct {
     char host[64];
     char rest_host[80];
+    uint16_t ftp_port;
     char password[sizeof(((struct c64_source *)0)->c64_password)];
     char device_key[64];
     long generation;
@@ -75,8 +86,13 @@ static void read_target(struct c64_source *context, follow_target_t *target)
     snprintf(target->device_key, sizeof(target->device_key), "%s",
              context->active_device_id[0] ? context->active_device_id : context->ip_address);
     pthread_mutex_unlock(&context->config_mutex);
-    if (rest_port) {
-        snprintf(target->rest_host, sizeof(target->rest_host), "%s:%u", target->host, rest_port);
+    uint16_t target_rest_port = rest_port;
+    target->ftp_port = ftp_port;
+    if (target_hook) {
+        target_hook(target->host, sizeof(target->host), &target_rest_port, &target->ftp_port);
+    }
+    if (target_rest_port) {
+        snprintf(target->rest_host, sizeof(target->rest_host), "%s:%u", target->host, target_rest_port);
     } else {
         snprintf(target->rest_host, sizeof(target->rest_host), "%s", target->host);
     }
@@ -88,7 +104,8 @@ static bool is_current(const struct c64_source *context, long generation)
 }
 
 // Caller holds palette_mutex.
-static void remember_locked(struct c64_source *context, const char *device_key, const uint32_t colors[16])
+static void remember_locked(struct c64_source *context, const char *device_key, const uint32_t colors[16],
+                            bool from_stream)
 {
     size_t slot = context->palette_memory_count;
     for (size_t i = 0; i < context->palette_memory_count; i++) {
@@ -107,17 +124,18 @@ static void remember_locked(struct c64_source *context, const char *device_key, 
     snprintf(context->palette_memory[slot].device_key, sizeof(context->palette_memory[slot].device_key), "%s",
              device_key);
     memcpy(context->palette_memory[slot].colors, colors, sizeof(context->palette_memory[slot].colors));
+    context->palette_memory[slot].from_stream = from_stream;
 }
 
-// Caller holds palette_mutex.
-static const uint32_t *recall_locked(const struct c64_source *context, const char *device_key)
+// Caller holds palette_mutex. Returns the device's memory slot, or -1.
+static int recall_locked(const struct c64_source *context, const char *device_key)
 {
     for (size_t i = 0; i < context->palette_memory_count; i++) {
         if (!strcmp(context->palette_memory[i].device_key, device_key)) {
-            return context->palette_memory[i].colors;
+            return (int)i;
         }
     }
-    return NULL;
+    return -1;
 }
 
 // Caller holds palette_mutex.
@@ -143,6 +161,29 @@ static void flush_refresh(struct c64_source *context)
     os_atomic_set_bool(&context->palette_refresh_pending, false);
     context->palette_refresh_last_ns = now_ns;
     c64_source_request_properties_refresh(context);
+}
+
+// Shows colours for the selected device, or, while a device switch waits for
+// the new device's first video packet, keeps them for that moment. Caller
+// holds palette_mutex.
+static void show_or_defer_locked(struct c64_source *context, const uint32_t colors[16])
+{
+    if (os_atomic_load_bool(&context->palette_cutover_pending)) {
+        memcpy(context->palette_cutover_colors, colors, sizeof(context->palette_cutover_colors));
+    } else {
+        show_locked(context, colors);
+    }
+}
+
+// Caller holds palette_mutex.
+static void cutover_locked(struct c64_source *context)
+{
+    if (os_atomic_set_bool(&context->palette_cutover_pending, false)) {
+        show_locked(context, context->palette_cutover_colors);
+        C64_LOG_DEBUG("PALETTE: device switch cut-over %.0f ms after the switch (colour 6 %08X, 14 %08X)",
+                      (os_gettime_ns() - context->palette_cutover_since_ns) / 1e6, context->palette_cutover_colors[6],
+                      context->palette_cutover_colors[14]);
+    }
 }
 
 // Publishes the status shown in Properties, unless the device selection
@@ -180,12 +221,15 @@ static bool apply_polled(struct c64_source *context, long generation, const char
     const bool apply = is_current(context, generation) && os_atomic_load_bool(&context->follow_device_palette) &&
                        !stream_is_fresh(context, os_gettime_ns());
     if (apply) {
+        C64_LOG_DEBUG("PALETTE: applying device setting colours (6 %08X, 14 %08X)%s", colors[6], colors[14],
+                      os_atomic_load_bool(&context->palette_cutover_pending) ? " at the next cut-over" : "");
         memcpy(context->polled_palette, colors, sizeof(context->polled_palette));
         context->polled_palette_valid = true;
         if (device_key) {
-            remember_locked(context, device_key, colors);
+            snprintf(context->palette_device_key, sizeof(context->palette_device_key), "%s", device_key);
+            remember_locked(context, device_key, colors, false);
         }
-        show_locked(context, colors);
+        show_or_defer_locked(context, colors);
         // The stream may resume with the palette generation it sent before;
         // that palette must replace these colours again.
         context->device_palette.ordering_valid = false;
@@ -269,6 +313,50 @@ static void fail(struct c64_source *context, follow_state_t *state, long generat
     set_status(context, generation, C64_PALETTE_SOURCE_ERROR, error, file);
 }
 
+// Cache files downloaded and compared recently. Rapid switching between
+// devices must not turn into one FTP download per switch. Shared by all
+// sources (the path includes the device), so guarded by verified_mutex.
+#define C64_PALETTE_VERIFIED_MAX 8
+#define C64_PALETTE_VERIFY_FRESH_NS (3000ULL * 1000000ULL)
+static struct {
+    char path[800];
+    uint64_t at_ns;
+} verified[C64_PALETTE_VERIFIED_MAX];
+static size_t verified_next;
+static pthread_mutex_t verified_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static bool verified_recently(const char *path, uint64_t now_ns)
+{
+    bool recent = false;
+    pthread_mutex_lock(&verified_mutex);
+    for (size_t i = 0; i < C64_PALETTE_VERIFIED_MAX; i++) {
+        if (verified[i].at_ns && !strcmp(verified[i].path, path)) {
+            recent = now_ns - verified[i].at_ns < C64_PALETTE_VERIFY_FRESH_NS;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&verified_mutex);
+    return recent;
+}
+
+static void mark_verified(const char *path, uint64_t now_ns)
+{
+    pthread_mutex_lock(&verified_mutex);
+    size_t slot = verified_next;
+    for (size_t i = 0; i < C64_PALETTE_VERIFIED_MAX; i++) {
+        if (verified[i].at_ns && !strcmp(verified[i].path, path)) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == verified_next) {
+        verified_next = (verified_next + 1) % C64_PALETTE_VERIFIED_MAX;
+    }
+    snprintf(verified[slot].path, sizeof(verified[slot].path), "%s", path);
+    verified[slot].at_ns = now_ns;
+    pthread_mutex_unlock(&verified_mutex);
+}
+
 static void poll_once(struct c64_source *context, follow_state_t *state)
 {
     const uint64_t now_ns = os_gettime_ns();
@@ -293,8 +381,18 @@ static void poll_once(struct c64_source *context, follow_state_t *state)
         return;
     }
     pthread_mutex_lock(&context->palette_mutex);
+    if (os_atomic_load_bool(&context->palette_cutover_pending) &&
+        now_ns - context->palette_cutover_since_ns >= C64_PALETTE_CUTOVER_MAX_NS) {
+        cutover_locked(context); // the new device sends no video: show its colours anyway
+    }
     const bool stream_fresh = stream_is_fresh(context, now_ns);
+    const uint64_t grace_until_ns = context->palette_stream_grace_until_ns;
     pthread_mutex_unlock(&context->palette_mutex);
+    if (!stream_fresh && now_ns < grace_until_ns) {
+        // The remembered stream palette is on screen; its stream is starting.
+        succeed(context, state, generation, C64_PALETTE_SOURCE_STREAM, NULL);
+        return;
+    }
     if (stream_fresh) {
         state->applied_key[0] = '\0'; // re-apply the setting if the stream stops carrying palettes
         succeed(context, state, generation, C64_PALETTE_SOURCE_STREAM, NULL);
@@ -357,35 +455,49 @@ static void poll_once(struct c64_source *context, follow_state_t *state)
     char data[C64_DEVICE_PALETTE_VPL_MAX + 1];
     size_t length = 0;
     uint32_t colors[16];
-    // A periodic recheck always downloads; otherwise the cache is enough.
-    const bool cached = !recheck && read_file(path, data, sizeof(data), &length) && length == state->size &&
+    // A cached file is shown at once. It is still downloaded and compared when
+    // the setting has just changed to it (the file may have been replaced on
+    // the device since it was cached), unless that was done moments ago, and
+    // on every 10th check.
+    const bool cached = read_file(path, data, sizeof(data), &length) && length == state->size &&
                         c64_device_palette_parse_vpl(data, length, colors);
-    if (!cached) {
-        if (!c64_device_palette_download(target.host, ftp_port, target.password, name, C64_PALETTE_FTP_TIMEOUT_MS,
-                                         cancel, data, sizeof(data), &length, &error)) {
-            fail(context, state, generation, error, name);
-            return;
-        }
-        if (!c64_device_palette_parse_vpl(data, length, colors)) {
-            fail(context, state, generation, C64_PALETTE_ERROR_INVALID_FILE, name);
-            return;
-        }
-        if (!is_current(context, generation)) {
-            return; // the file belongs to a device the source has left: cache nothing under its key
-        }
-        char previous[C64_DEVICE_PALETTE_VPL_MAX + 1];
-        size_t previous_length = 0;
-        const bool same = read_file(path, previous, sizeof(previous), &previous_length) && previous_length == length &&
-                          !memcmp(previous, data, length);
-        if (!same) {
-            write_file(path, data, length);
-            C64_LOG_INFO("PALETTE: downloaded \"%s\" (%zu bytes) from %s", name, length, target.host);
-        } else if (!strcmp(path, state->applied_key)) {
-            succeed(context, state, generation, C64_PALETTE_SOURCE_DEVICE_FILE, name);
-            return; // recheck found no change
-        }
+    if (cached && strcmp(path, state->applied_key) != 0 &&
+        apply_polled(context, generation, target.device_key, colors)) {
+        snprintf(state->applied_key, sizeof(state->applied_key), "%s", path);
     }
-    if (apply_polled(context, generation, target.device_key, colors)) {
+    const bool verify = !cached || recheck || (name_changed && !verified_recently(path, now_ns));
+    if (!verify) {
+        succeed(context, state, generation, C64_PALETTE_SOURCE_DEVICE_FILE, name);
+        return;
+    }
+    char fetched[C64_DEVICE_PALETTE_VPL_MAX + 1];
+    size_t fetched_length = 0;
+    uint32_t fetched_colors[16];
+    if (!c64_device_palette_download(target.host, target.ftp_port, target.password, name, C64_PALETTE_FTP_TIMEOUT_MS,
+                                     cancel, fetched, sizeof(fetched), &fetched_length, &error)) {
+        if (cached) {
+            // The cached copy is on screen; the check is repeated later.
+            succeed(context, state, generation, C64_PALETTE_SOURCE_DEVICE_FILE, name);
+        } else {
+            fail(context, state, generation, error, name);
+        }
+        return;
+    }
+    if (!c64_device_palette_parse_vpl(fetched, fetched_length, fetched_colors)) {
+        fail(context, state, generation, C64_PALETTE_ERROR_INVALID_FILE, name);
+        return;
+    }
+    if (!is_current(context, generation)) {
+        return; // the source has switched since: cache nothing under a key that may not match the host
+    }
+    mark_verified(path, now_ns);
+    if (cached && fetched_length == length && !memcmp(fetched, data, length)) {
+        succeed(context, state, generation, C64_PALETTE_SOURCE_DEVICE_FILE, name);
+        return; // the cached copy is current
+    }
+    write_file(path, fetched, fetched_length);
+    C64_LOG_INFO("PALETTE: downloaded \"%s\" (%zu bytes) from %s", name, fetched_length, target.host);
+    if (apply_polled(context, generation, target.device_key, fetched_colors)) {
         snprintf(state->applied_key, sizeof(state->applied_key), "%s", path);
     }
     succeed(context, state, generation, C64_PALETTE_SOURCE_DEVICE_FILE, name);
@@ -433,6 +545,16 @@ static void *c64_palette_follow_main(void *arg)
         }
         if (wake) {
             state.error_streak = 0; // something changed: back to the normal pace
+        }
+        pthread_mutex_lock(&context->palette_mutex);
+        const uint64_t settled_ns = context->palette_switched_ns + C64_PALETTE_SWITCH_SETTLE_MS * 1000000ULL;
+        pthread_mutex_unlock(&context->palette_mutex);
+        const uint64_t check_ns = os_gettime_ns();
+        if (check_ns < settled_ns) {
+            os_event_timedwait(context->palette_worker_event,
+                               (unsigned long)((settled_ns - check_ns) / 1000000ULL + 1));
+            os_atomic_set_bool(&context->palette_worker_wake, true); // check once it has settled
+            continue;
         }
         take_reset(context, &state);
         poll_once(context, &state);
@@ -503,14 +625,29 @@ void c64_palette_follow_device_changed(struct c64_source *context, const char *d
     // Results of checks still running for the previous device are dropped.
     pthread_mutex_lock(&context->palette_mutex);
     os_atomic_inc_long(&context->palette_device_generation);
+    context->palette_switched_ns = os_gettime_ns();
+    snprintf(context->palette_device_key, sizeof(context->palette_device_key), "%s", device_key ? device_key : "");
     context->palette_packet_last_ns = 0;
-    const uint32_t *known = recall_locked(context, device_key ? device_key : "");
+    const int slot = recall_locked(context, device_key ? device_key : "");
+    const uint32_t *known = slot >= 0 ? context->palette_memory[slot].colors : NULL;
+    // A device that sent its palette in the stream will do so again within
+    // moments of the new stream start; polling its setting first would flash
+    // the setting's palette in between.
+    context->palette_stream_grace_until_ns =
+        slot >= 0 && context->palette_memory[slot].from_stream ? os_gettime_ns() + C64_PALETTE_STREAM_GRACE_NS : 0;
     context->polled_palette_valid = known != NULL;
     if (known) {
         memcpy(context->polled_palette, known, sizeof(context->polled_palette));
     }
     if (os_atomic_load_bool(&context->follow_device_palette) && context->palette_initialized) {
-        show_locked(context, known ? known : c64_default_palette);
+        // Shown with the new device's first video packet (c64_palette_follow_cutover).
+        memcpy(context->palette_cutover_colors, known ? known : c64_default_palette,
+               sizeof(context->palette_cutover_colors));
+        context->palette_cutover_since_ns = os_gettime_ns();
+        os_atomic_set_bool(&context->palette_cutover_marked, false);
+        os_atomic_set_bool(&context->palette_cutover_pending, true);
+        // The receive thread tags the next packet from the new expected peer
+        // (c64_update has set it before this call) for the cut-over.
     }
     pthread_mutex_unlock(&context->palette_mutex);
     os_atomic_set_bool(&context->palette_worker_reset, true);
@@ -603,10 +740,36 @@ void c64_palette_follow_note_stream_packet(struct c64_source *context)
     }
 }
 
+void c64_palette_follow_show_stream_palette(struct c64_source *context, const uint32_t colors[16])
+{
+    if (!context || !colors) {
+        return;
+    }
+    show_or_defer_locked(context, colors);
+    if (context->palette_device_key[0]) {
+        remember_locked(context, context->palette_device_key, colors, true);
+    }
+}
+
+void c64_palette_follow_cutover(struct c64_source *context)
+{
+    if (!context || !os_atomic_load_bool(&context->palette_cutover_pending)) {
+        return;
+    }
+    pthread_mutex_lock(&context->palette_mutex);
+    cutover_locked(context);
+    pthread_mutex_unlock(&context->palette_mutex);
+}
+
 void c64_palette_follow_set_ports_for_test(uint16_t test_rest_port, uint16_t test_ftp_port)
 {
     rest_port = test_rest_port;
     ftp_port = test_ftp_port ? test_ftp_port : 21;
+}
+
+void c64_palette_follow_set_target_hook_for_test(c64_palette_follow_target_hook_t hook)
+{
+    target_hook = hook;
 }
 
 void c64_palette_follow_set_cache_dir_for_test(const char *dir)

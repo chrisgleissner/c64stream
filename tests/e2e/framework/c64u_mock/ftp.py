@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class MockFtpServer:
-    def __init__(self, files: Callable[[], dict[str, bytes]], password: str = "", port: int = 21,
+    """files(local_address) returns the files of the device at that address."""
+    def __init__(self, files: Callable[[str], dict[str, bytes]], password: str = "", port: int = 21,
                  bind_ip: str = "0.0.0.0"):
         self.files = files
         self.password = password
@@ -104,7 +105,7 @@ class MockFtpServer:
                         reply(f"227 Entering Passive Mode ({host},{port >> 8},{port & 0xFF})")
                 elif verb in ("SIZE", "RETR"):
                     name = arg.rsplit("/", 1)[-1]
-                    data = self.files().get(name)
+                    data = self.files(conn.getsockname()[0]).get(name)
                     if data is None:
                         reply("550 File not found")
                     elif verb == "SIZE":

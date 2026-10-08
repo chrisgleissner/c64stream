@@ -25,6 +25,7 @@ from .base import AssertionResult, AssertionStatus, EffectAssertion, is_ci
 from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
 from .discovered_stream_patterns import DiscoveredStreamPatternsAssertion
+from .palette_device_pairs import PaletteDevicePairsAssertion
 from .device_switch_log import DeviceSwitchLogAssertion
 from .device_switch_speed import DeviceSwitchSpeedAssertion
 from .transport_log import LegacyTransportLogAssertion, RestTransportLogAssertion
@@ -209,6 +210,7 @@ def create_assertions_from_list(
         "device_switch_log": DeviceSwitchLogAssertion,
         "device_switch_speed": DeviceSwitchSpeedAssertion,
         "discovered_stream_patterns": DiscoveredStreamPatternsAssertion,
+        "palette_device_pairs": PaletteDevicePairsAssertion,
         "legacy_transport_log": LegacyTransportLogAssertion,
         "rest_transport_log": RestTransportLogAssertion,
         "bounds_stability": BoundsStabilityAssertion,
