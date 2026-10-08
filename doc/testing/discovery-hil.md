@@ -5,7 +5,7 @@ Ultimate / Ultimate 64 devices. It complements the CI coverage:
 
 | Layer | Where it runs | What it covers |
 | --- | --- | --- |
-| `tests/network/test_c64_device_scan_hermetic.c` | ctest on Linux, macOS, Windows CI | Real probe path against fake devices on loopback: foreign servers, passwords, stalls, truncated and oversized responses, retries, long hostnames, the concurrent reachability check, interface enumeration on the runner |
+| `tests/network/test_c64_device_scan_hermetic.c` | ctest on Linux, macOS, Windows x64 and ARM64 CI (label `platform-ci`) | Real probe path against fake devices on loopback: foreign servers, passwords, stalls, truncated and oversized responses, retries, long hostnames, the concurrent reachability check, interface enumeration on the runner |
 | `tests/network/test_c64_device_switch.c`, `test_c64_ingest_filter.c`, `test_c64_device.c`, `test_c64_device_scan.c` | ctest on Linux, macOS, Windows CI | Stop queue, handover admission, sender verification policy, selection policy |
 | `tests/e2e/scenarios/ntsc_device_switch_speed` | every CI build (Linux, real OBS, mock devices) | Switch pause and first-frame time ≤ 1 s for live back-and-forth, rapid fire and round trips to an unreachable device |
 | `tests/hil/c64stream_hil.py` | local only | Real devices, real LAN, network faults, power cycles, long soak |
