@@ -328,3 +328,31 @@ else()
   target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl iphlpapi ws2_32)
 endif()
 add_test(NAME c64_device_scan COMMAND test_c64_device_scan)
+
+add_executable(test_c64_device_switch test_c64_device_switch.c ${CMAKE_SOURCE_DIR}/src/device/c64-device-switch.c)
+target_include_directories(test_c64_device_switch PRIVATE ${CMAKE_SOURCE_DIR}/src/device)
+add_test(NAME c64_device_switch COMMAND test_c64_device_switch)
+
+add_executable(
+  test_c64_device_scan_hermetic
+  test_c64_device_scan_hermetic.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
+  ${CMAKE_SOURCE_DIR}/src/network/c64-network.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/util/c64-file.c
+)
+target_include_directories(
+  test_c64_device_scan_hermetic
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/device
+    ${CMAKE_SOURCE_DIR}/src/network
+    ${CMAKE_SOURCE_DIR}/src/util
+    ${CMAKE_SOURCE_DIR}/src/video
+)
+if(UNIX)
+  target_link_libraries(test_c64_device_scan_hermetic PRIVATE OBS::libobs CURL::libcurl m resolv)
+else()
+  target_link_libraries(test_c64_device_scan_hermetic PRIVATE OBS::libobs CURL::libcurl iphlpapi ws2_32)
+endif()
+add_test(NAME c64_device_scan_hermetic COMMAND test_c64_device_scan_hermetic)

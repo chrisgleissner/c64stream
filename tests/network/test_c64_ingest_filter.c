@@ -97,11 +97,108 @@ TEST(null_safe_accepts)
     assert(c64_packet_from_expected_peer(&ctx, NULL));
 }
 
+// Device switch handover: the previous device's picture stays live until the
+// new device's first packet, then the previous device is dropped for good.
+TEST(handover_admits_previous_device_until_new_device_arrives)
+{
+    static struct c64_source ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    const struct sockaddr_in old_device = make_sender("192.168.1.13");
+    const struct sockaddr_in new_device = make_sender("192.168.1.146");
+    const struct sockaddr_in stranger = make_sender("192.168.1.99");
+    ctx.expected_peer_ip = new_device.sin_addr.s_addr;
+    ctx.expected_peer_ip_set = true;
+    ctx.handover_peer_ip = old_device.sin_addr.s_addr;
+    ctx.handover_peer_ip_set = true;
+
+    assert(c64_packet_admit(&ctx, &old_device));
+    assert(c64_packet_admit(&ctx, &old_device));
+    assert(ctx.handover_peer_ip_set);
+    assert(!c64_packet_admit(&ctx, &stranger)); // anyone else is still dropped
+    assert(ctx.rejected_peer_ip == stranger.sin_addr.s_addr);
+
+    assert(c64_packet_admit(&ctx, &new_device)); // first packet of the new device
+    assert(!ctx.handover_peer_ip_set);
+    assert(!c64_packet_admit(&ctx, &old_device)); // the two streams never interleave
+    assert(ctx.rejected_peer_ip == old_device.sin_addr.s_addr);
+    assert(c64_packet_admit(&ctx, &new_device));
+}
+
+// While the new host is still unresolved the filter fails open; the handover
+// must not be closed by a packet that only passed because of that.
+TEST(handover_kept_while_expected_peer_unknown)
+{
+    static struct c64_source ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    const struct sockaddr_in old_device = make_sender("192.168.1.13");
+    const struct sockaddr_in other = make_sender("192.168.1.146");
+    ctx.handover_peer_ip = old_device.sin_addr.s_addr;
+    ctx.handover_peer_ip_set = true;
+    assert(c64_packet_admit(&ctx, &other));
+    assert(ctx.handover_peer_ip_set);
+}
+
+// A sender verified as the same device (learned peer) counts as the new device.
+TEST(learned_peer_admitted_and_closes_handover)
+{
+    static struct c64_source ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    const struct sockaddr_in wifi = make_sender("192.168.1.129");
+    const struct sockaddr_in wired = make_sender("192.168.1.146");
+    const struct sockaddr_in old_device = make_sender("192.168.1.13");
+    ctx.expected_peer_ip = wifi.sin_addr.s_addr;
+    ctx.expected_peer_ip_set = true;
+    assert(!c64_packet_admit(&ctx, &wired));
+    ctx.learned_peer_ip = wired.sin_addr.s_addr;
+    ctx.learned_peer_ip_set = true;
+    ctx.handover_peer_ip = old_device.sin_addr.s_addr;
+    ctx.handover_peer_ip_set = true;
+    assert(c64_packet_admit(&ctx, &wired));
+    assert(!ctx.handover_peer_ip_set);
+}
+
+// Processor side: previous-device packets still queued when the new device's
+// first packet arrives are dropped, and the first new packet requests a flush
+// of what was already reordered or partially assembled.
+TEST(handover_cutover_drops_queued_previous_device_packets)
+{
+    static struct c64_source ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    const struct sockaddr_in old_device = make_sender("192.168.1.13");
+    const struct sockaddr_in new_device = make_sender("192.168.1.146");
+    ctx.expected_peer_ip = new_device.sin_addr.s_addr;
+    ctx.expected_peer_ip_set = true;
+    ctx.handover_peer_ip = old_device.sin_addr.s_addr;
+    ctx.handover_peer_ip_set = true;
+
+    // Receive side: two old packets queued (tagged), then the new device arrives.
+    const bool old_tag = c64_packet_from_handover(&ctx, &old_device);
+    assert(old_tag && c64_packet_admit(&ctx, &old_device));
+    const bool new_tag = c64_packet_from_handover(&ctx, &new_device);
+    assert(!new_tag && c64_packet_admit(&ctx, &new_device));
+    assert(ctx.handover_flush_pending);
+
+    // Processor side, in queue order: the old packet is dropped, the new one
+    // flushes once and is kept, later new packets are kept without a flush.
+    bool flush = true;
+    assert(c64_handover_should_drop(&ctx, old_tag, &flush) && !flush);
+    assert(!c64_handover_should_drop(&ctx, new_tag, &flush) && flush);
+    assert(!c64_handover_should_drop(&ctx, false, &flush) && !flush);
+
+    // While the handover is still open, tagged packets are kept.
+    ctx.handover_peer_ip_set = true;
+    assert(!c64_handover_should_drop(&ctx, true, &flush) && !flush);
+}
+
 int main(void)
 {
     RUN_TEST(accepts_all_when_expected_peer_unknown);
     RUN_TEST(accepts_expected_peer_drops_others);
     RUN_TEST(accepts_verified_alternate_peer);
     RUN_TEST(null_safe_accepts);
+    RUN_TEST(handover_admits_previous_device_until_new_device_arrives);
+    RUN_TEST(handover_kept_while_expected_peer_unknown);
+    RUN_TEST(learned_peer_admitted_and_closes_handover);
+    RUN_TEST(handover_cutover_drops_queued_previous_device_packets);
     return 0;
 }

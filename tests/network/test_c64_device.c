@@ -65,6 +65,35 @@ static int test_stream_failover_policy(void)
     return 0;
 }
 
+static int test_sender_check_policy(void)
+{
+    const uint64_t second = 1000000000ULL;
+    const uint64_t grace = 1500000000ULL;
+    const uint64_t recheck = 30 * second;
+    const uint64_t start = 100 * second;
+    const uint32_t wifi = 0x8101A8C0u, wired = 0x9201A8C0u, other = 0x0D01A8C0u;
+    // Wired sender rejected while configured with Wi-Fi, no video for the grace period.
+    CHECK(c64_device_sender_check_due(wired, wifi, false, 0, false, 0, 0, 0, start, start + grace, grace, recheck));
+    // Not before the grace period, and not without a pending start.
+    CHECK(
+        !c64_device_sender_check_due(wired, wifi, false, 0, false, 0, 0, 0, start, start + grace - 1, grace, recheck));
+    CHECK(!c64_device_sender_check_due(wired, wifi, false, 0, false, 0, 0, 0, 0, start + grace, grace, recheck));
+    // Nothing rejected, or the sender is already accepted.
+    CHECK(!c64_device_sender_check_due(0, wifi, false, 0, false, 0, 0, 0, start, start + grace, grace, recheck));
+    CHECK(!c64_device_sender_check_due(wifi, wifi, false, 0, false, 0, 0, 0, start, start + grace, grace, recheck));
+    CHECK(!c64_device_sender_check_due(wired, wifi, true, wired, false, 0, 0, 0, start, start + grace, grace, recheck));
+    CHECK(!c64_device_sender_check_due(wired, wifi, false, 0, true, wired, 0, 0, start, start + grace, grace, recheck));
+    // A sender that failed the identity check is not re-probed on every retry...
+    CHECK(!c64_device_sender_check_due(other, wifi, false, 0, false, 0, other, start + grace, start,
+                                       start + grace + 5 * second, grace, recheck));
+    // ...but is after the recheck interval, and a different sender is checked at once.
+    CHECK(c64_device_sender_check_due(other, wifi, false, 0, false, 0, other, start + grace, start,
+                                      start + grace + recheck, grace, recheck));
+    CHECK(c64_device_sender_check_due(wired, wifi, false, 0, false, 0, other, start + grace, start,
+                                      start + grace + second, grace, recheck));
+    return 0;
+}
+
 int main(void)
 {
 #ifndef _WIN32
@@ -74,6 +103,7 @@ int main(void)
 #endif
     CHECK(c64_device_registry_init());
     CHECK(test_stream_failover_policy() == 0);
+    CHECK(test_sender_check_policy() == 0);
     char id[64];
     CHECK(c64_device_id_from_host(id, sizeof(id), "5D4E12", "ignored"));
     CHECK(strcmp(id, "5d4e12") == 0);
