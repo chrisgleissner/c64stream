@@ -619,6 +619,8 @@ TEST(wrapper_null_context_returns_false)
 
 int main(void)
 {
+    // Unbuffered, so the last test started is visible if the process crashes.
+    setvbuf(stdout, NULL, _IONBF, 0);
     RUN_TEST(should_fallback_only_for_not_supported);
     RUN_TEST(rest_success_never_falls_back);
     RUN_TEST(device_palette_is_requested_only_for_video);
