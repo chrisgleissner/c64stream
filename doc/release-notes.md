@@ -1,6 +1,15 @@
 # Release Notes
 
-## Unreleased
+## 1.2.1
+
+- A device whose firmware does not yet send palette information in the stream (it rejects the
+  runtime palette request, or the connection uses the legacy control port) is now logged at
+  info level instead of warning level. OBS continues without runtime palettes in that case,
+  as before; the message was never an error.
+- Dependabot alerts, security updates and weekly version updates (GitHub Actions, CI Docker
+  images, E2E Python packages) are enabled for the repository.
+
+## 1.2.0
 
 ### Device discovery and switching (hardware-tested)
 
