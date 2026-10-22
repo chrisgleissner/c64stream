@@ -57,7 +57,7 @@ jobs:
       pluginName: ${{ steps.setup.outputs.pluginName }}
       pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Check Event Data ☑️
@@ -139,7 +139,7 @@ jobs:
     outputs:
       versions_json: ${{ steps.resolve.outputs.versions_json }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve Latest OBS Studio Release 🔎
         id: resolve
         env:
@@ -184,7 +184,7 @@ jobs:
       run:
         shell: zsh --no-rcs --errexit --pipefail {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -223,7 +223,7 @@ jobs:
           print "pluginName=${product_name}" >> $GITHUB_OUTPUT
           print "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: ccache-cache
         with:
           path: ${{ github.workspace }}/.ccache
@@ -269,13 +269,13 @@ jobs:
           version: ${{ needs.check-event.outputs.pluginVersion }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*
 
       - name: Upload Debug Symbol Artifacts 🪲
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: ${{ needs.check-event.outputs.config == 'Release' }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}-dSYMs
@@ -311,7 +311,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout Repository 📥
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -376,11 +376,11 @@ jobs:
 
       - name: Set up Docker Buildx 🔧
         if: steps.check.outputs.needs_build == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry 🔑
         if: steps.check.outputs.needs_build == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -390,7 +390,7 @@ jobs:
         id: build
         if: steps.check.outputs.needs_build == 'true'
         continue-on-error: ${{ steps.check.outputs.fallback_allowed == 'true' }}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: .github/docker/${{ matrix.dockerfile }}
@@ -437,7 +437,7 @@ jobs:
       artifactName: ${{ steps.setup.outputs.artifactName }}
     steps:
       - name: Checkout Repository �
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -525,7 +525,7 @@ jobs:
           ls -la build_x86_64/ | grep -E '\.(so|tar\.xz|deb|ddeb)$' || echo "No build artifacts found"
 
       - name: Upload Plugin Binary 📤
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.setup.outputs.artifactName }}
           path: |
@@ -535,14 +535,14 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Source Tarball 🗜️
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-sources-${{ needs.check-event.outputs.commitHash }}
           path: release/*source.*
 
       - name: Upload Debug Symbols 🪲
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
           name: ${{ steps.setup.outputs.artifactName }}-dbgsym
@@ -558,13 +558,13 @@ jobs:
         shell: bash
     steps:
       - name: Checkout Repository 📥
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Set up Python 🐍
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -587,7 +587,7 @@ jobs:
           python -m pytest util/test_*.py -v --tb=short --junitxml=../../test-results.xml
 
       - name: Upload Test Results 📊
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: python-test-results-${{ needs.check-event.outputs.commitHash }}
@@ -601,7 +601,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -618,7 +618,7 @@ jobs:
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: ccache-cache
         with:
           path: ${{ github.workspace }}/.ccache
@@ -641,7 +641,7 @@ jobs:
           version: ${{ needs.check-event.outputs.pluginVersion }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
@@ -654,7 +654,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -671,7 +671,7 @@ jobs:
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: ccache-cache
         with:
           path: ${{ github.workspace }}/.ccache
@@ -694,7 +694,7 @@ jobs:
           version: ${{ needs.check-event.outputs.pluginVersion }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64*.*
@@ -779,13 +779,13 @@ jobs:
       DISPLAY: ":99"
     steps:
       - name: Checkout Repository 📥
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Download Plugin Artifact 📥
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.ubuntu-build.outputs.artifactName }}
           path: artifact
@@ -930,7 +930,7 @@ jobs:
 
       - name: Run Basic E2E Test 🧪
         id: run_e2e
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -987,7 +987,7 @@ jobs:
 
       - name: Upload E2E Artifacts 📤
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-basic-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
@@ -1073,13 +1073,13 @@ jobs:
       DISPLAY: ":99"
     steps:
       - name: Checkout Repository 📥
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Download Plugin Artifact 📥
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.ubuntu-build.outputs.artifactName }}
           path: artifact
@@ -1217,7 +1217,7 @@ jobs:
 
       - name: Run E2E Scenario 🧪
         id: run_e2e
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -1307,7 +1307,7 @@ jobs:
 
       - name: Upload E2E Artifacts 📤
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-full-${{ matrix.scenario }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
@@ -1338,7 +1338,7 @@ jobs:
     needs: [check-event, e2e-basic, e2e-full]
     steps:
       - name: Download All E2E Artifacts 📥
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: e2e-*
           path: all-e2e-artifacts
@@ -1371,7 +1371,7 @@ jobs:
           echo "✅ Consolidated $(find all-e2e-artifacts -type d -name 'e2e-*' | wc -l) E2E artifact directories"
 
       - name: Upload Consolidated E2E Artifacts 📤
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-all-results-${{ needs.check-event.outputs.commitHash }}
           path: all-e2e-artifacts/
