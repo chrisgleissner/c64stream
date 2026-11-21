@@ -1,8 +1,8 @@
 # E2E Test Dependencies
 # Required for running Python unit tests and E2E validation
 
-numpy>=2.5.4
-opencv-python>=5.0.0.93
+numpy>=2.5.5
+opencv-python>=5.1.0.95
 Pillow>=13.0.0
 scipy>=1.18.1
 requests>=2.34.2
