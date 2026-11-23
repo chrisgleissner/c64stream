@@ -191,7 +191,7 @@ Verified on macOS Sequoia 15.7 and Tahoe 26.4 with Apple Silicon M4 (Intel syste
 3. Install the plugin to `$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin` by running the following on the command line:
 
 > [!NOTE]
-> These commands are required due to platform packaging constraints on macOS and will be simplified in a future release.
+> These commands are required due to platform packaging constraints on macOS.
 
 ```zsh
 cd ~/Downloads && \
