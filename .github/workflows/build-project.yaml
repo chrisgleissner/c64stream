@@ -178,7 +178,7 @@ jobs:
 
   macos-build:
     name: Build for macOS 🍏
-    runs-on: macos-15
+    runs-on: macos-26
     needs: check-event
     defaults:
       run:
@@ -196,12 +196,7 @@ jobs:
           if (( ${+RUNNER_DEBUG} )) setopt XTRACE
 
           print '::group::Select Xcode'
-          if [[ -d /Applications/Xcode_16.1.0.app/Contents/Developer ]]; then
-            print 'Using Xcode 16.1'
-            sudo xcode-select --switch /Applications/Xcode_16.1.0.app/Contents/Developer
-          else
-            print 'Xcode 16.1 not found; using runner default Xcode'
-          fi
+          sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
           xcode-select -p
           xcodebuild -version
           print '::endgroup::'
