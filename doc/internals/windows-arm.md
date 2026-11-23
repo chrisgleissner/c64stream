@@ -198,35 +198,7 @@ jobs:
 
 ### Dependency Management
 
-ARM64 dependencies are defined in [buildspec.json](../buildspec.json):
-
-```json
-{
-  "dependencies": {
-    "obs-studio": {
-      "version": "31.1.1",
-      "hashes": {
-        "windows-x64": "c8c642c1070dc31ce9a0f1e4cef5bb992f4bff4882255788b5da12129e85caa7",
-        "windows-arm64": "3c63ea4e92f3fa7887839e499d3ea697b4363f196b1df8f8558307b45fcba31e"
-      }
-    },
-    "prebuilt": {
-      "version": "2025-07-11",
-      "hashes": {
-        "windows-x64": "38c40b13a341f6027ef90ffb3c72dae5cbc9bce34c6e23... ",
-        "windows-arm64": "f581cc61e8f734a8b12d485fc8662a408ca59d222814e4b37bce115bd442fb04"
-      }
-    },
-    "qt6": {
-      "version": "2025-07-11",
-      "hashes": {
-        "windows-x64": "86e1a2f5fd4a03f... ",
-        "windows-arm64": "7aab240504931f32ea8e8d208a912a0d6ddbd78c16858f2e559c7c9b29ab9326"
-      }
-    }
-  }
-}
-```
+[buildspec.json](../../buildspec.json) pins the OBS source archive, obs-deps, and Qt6 versions and checksums. The `windows-arm64` entries select the ARM64 packages.
 
 **Dependency sources:**
 

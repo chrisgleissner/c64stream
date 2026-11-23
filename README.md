@@ -154,7 +154,7 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 #### Windows (ARM64)
 
 1. Download and unzip the ARM64 build of OBS Studio:
-   <https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip>
+   <https://github.com/obsproject/obs-studio/releases/download/33.0.2/OBS-Studio-33.0.2-Windows-arm64.zip>
 2. Ensure OBS Studio is closed.
 3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
 4. Install the plugin exactly as described in **Windows (X64)** above.

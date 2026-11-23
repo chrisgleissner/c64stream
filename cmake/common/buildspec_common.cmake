@@ -52,42 +52,43 @@ function(_setup_obs_studio)
     set(_is_fresh --fresh)
   endif()
 
-  # Keep third-party configure output warning-free and platform-correct.
-  set(_obs_cmake_flags "")
-  list(APPEND _obs_cmake_flags -Wno-dev)
-  list(APPEND _obs_cmake_flags "-DCMAKE_SUPPRESS_DEVELOPER_WARNINGS:BOOL=ON")
-
-  if(OS_WINDOWS)
-    # Silence Detours' AUTHOR_WARNING when pkg-config version info isn't present.
-    list(APPEND _obs_cmake_flags "-DDetours_FIND_QUIETLY:BOOL=ON")
-    # Disable virtualcam module entirely (not needed for libobs builds; avoids GUID warnings).
-    list(APPEND _obs_cmake_flags "-DENABLE_VIRTUALCAM:BOOL=OFF")
-  elseif(OS_MACOS)
-    # OBS 32 adds libobs-metal (Swift) even for headless builds; ensure Swift language is enabled.
-    list(
-      APPEND _obs_cmake_flags
-      "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES:FILEPATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/obs-top-level-includes.cmake"
-    )
-  endif()
+  set(
+    _obs_cmake_flags
+    -Wno-dev
+    -DENABLE_CORE_MODULES:BOOL=OFF
+    -DENABLE_FRONTEND:BOOL=OFF
+    -DENABLE_SCRIPTING:BOOL=OFF
+    -DENABLE_BROWSER:BOOL=OFF
+  )
 
   if(OS_WINDOWS)
     set(_cmake_generator "${CMAKE_GENERATOR}")
-    set(_cmake_arch "-A ${arch},version=${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
-    set(_cmake_extra "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION} -DCMAKE_ENABLE_SCRIPTING=OFF")
+    list(
+      APPEND _obs_cmake_flags
+      -A
+      "${CMAKE_VS_PLATFORM_NAME},version=${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}"
+      "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION}"
+    )
   elseif(OS_MACOS)
     set(_cmake_generator "Xcode")
-    set(_cmake_arch "-DCMAKE_OSX_ARCHITECTURES:STRING='arm64;x86_64'")
-    set(_cmake_extra "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    # OBS builds libobs-metal even with the frontend disabled.
+    list(
+      APPEND _obs_cmake_flags
+      "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES:FILEPATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/obs-top-level-includes.cmake"
+      "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
+      "-DCMAKE_OSX_ARCHITECTURES:STRING=arm64\;x86_64"
+    )
   endif()
+
+  # OBS reserves build_x64 and build_x86 for its Windows helper builds.
+  set(_obs_build_dir "sdk-build-${arch}")
 
   message(STATUS "Configure ${label} (${arch})")
   execute_process(
     COMMAND
       "${CMAKE_COMMAND}" ${_obs_cmake_flags} -S "${dependencies_dir}/${_obs_destination}" -B
-      "${dependencies_dir}/${_obs_destination}/build_${arch}" -G ${_cmake_generator} "${_cmake_arch}"
-      -DOBS_CMAKE_VERSION:STRING=3.0.0 -DENABLE_PLUGINS:BOOL=OFF -DENABLE_FRONTEND:BOOL=OFF
-      -DOBS_VERSION_OVERRIDE:STRING=${_obs_version} "-DCMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'" ${_is_fresh}
-      ${_cmake_extra}
+      "${dependencies_dir}/${_obs_destination}/${_obs_build_dir}" -G "${_cmake_generator}"
+      -DOBS_VERSION_OVERRIDE:STRING=${_obs_version} "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}" ${_is_fresh}
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
     OUTPUT_QUIET
@@ -96,28 +97,27 @@ function(_setup_obs_studio)
 
   message(STATUS "Build ${label} (Debug - ${arch})")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Debug --parallel
+    COMMAND "${CMAKE_COMMAND}" --build "${_obs_build_dir}" --target obs-frontend-api --config Debug --parallel
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
-    OUTPUT_QUIET
   )
   message(STATUS "Build ${label} (Debug - ${arch}) - done")
 
   message(STATUS "Build ${label} (Release - ${arch})")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Release --parallel
+    COMMAND "${CMAKE_COMMAND}" --build "${_obs_build_dir}" --target obs-frontend-api --config Release --parallel
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
-    OUTPUT_QUIET
   )
-  message(STATUS "Build ${label} (Reelase - ${arch}) - done")
+  message(STATUS "Build ${label} (Release - ${arch}) - done")
 
   message(STATUS "Install ${label} (${arch})")
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix "${dependencies_dir}"
+      "${CMAKE_COMMAND}" --install "${_obs_build_dir}" --component Development --config Debug --prefix
+      "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -125,7 +125,8 @@ function(_setup_obs_studio)
   )
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Release --prefix "${dependencies_dir}"
+      "${CMAKE_COMMAND}" --install "${_obs_build_dir}" --component Development --config Release --prefix
+      "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
