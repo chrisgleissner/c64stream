@@ -17,14 +17,14 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 
 **Features:**
 
-- **Direct C64U → OBS streaming**: Video/audio streams received directly from a Commodore 64 Ultimate or Ultimate 64 over UDP/TCP (no capture card).
+- **Direct C64U → OBS streaming**: Video/audio streams received directly from a Commodore 64 Ultimate or Ultimate 64 over UDP/TCP.
 - **Two native OBS plugins**: A **C64 Stream** input source plus a **C64 Stream Effects** filter (they share the same effects engine; most setups use one or the other).
 - **Real-time video + audio**: PAL 384x272 and NTSC 384x240 video, plus synchronized 16-bit stereo audio at ~48kHz.
 - **CRT effects + palettes**: GPU-accelerated CRT effects with configurable presets (scan lines, bloom, tint, pixel geometry) and automatic VIC-II color space conversion.
 - **Built-in recording + diagnostics**: Record BMP frames, AVI video, and WAV audio, plus optional CSV timing logs (`obs.csv` / `network.csv`) for debugging.
 - **Keyboard capture**: Click the `Interact` button below the preview to type directly into the C64.
 - **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([tutorial](doc/c64script/c64script-tutorial.md)).
-- **Saved devices**: Save network-only device profiles and switch from the Device list without retyping a host. Passwords stay in OBS source settings per device and are never written to profile `.ini` files.
+- **Saved devices**: Save network-only device profiles and switch from the Device list without retyping a host.
 
 ## Contents
 
