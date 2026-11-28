@@ -6,4 +6,4 @@ opencv-python>=5.1.0.95
 Pillow>=13.0.0
 scipy>=1.18.1
 requests>=2.34.2
-PyYAML>=6.0.3
+PyYAML>=6.0.4
